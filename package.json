@@ -1,0 +1,19 @@
+{
+  "name": "v-writing-companion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "V - universal AI writing companion for Windows",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @v/desktop",
+    "build": "npm run build -w @v/desktop",
+    "test": "npm run test -w @v/desktop && npm run test -w @v/shared && npm run test -w @v/browser-extension",
+    "lint": "npm run lint -w @v/desktop"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
