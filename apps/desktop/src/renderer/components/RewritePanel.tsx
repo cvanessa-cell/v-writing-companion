@@ -10,7 +10,15 @@ interface Props {
 }
 
 const ACTIONS: RewriteAction[] = [
-  'polish', 'professional', 'warm', 'shorten', 'clarify', 'strengthen', 'grammar', 'speech_cleanup', 'custom',
+  'polish',
+  'professional',
+  'warm',
+  'shorten',
+  'clarify',
+  'strengthen',
+  'grammar',
+  'speech_cleanup',
+  'custom',
 ];
 
 export function RewritePanel({ initialText = '', initialContext, initialError, privacyReading }: Props) {
@@ -40,7 +48,9 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
       setReplaceStatus('');
       setReading(Boolean(payload.privacyReading));
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   async function runRewrite(nextAction = action) {
@@ -48,9 +58,11 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
       setError('No text to rewrite.');
       return;
     }
+
     setLoading(true);
     setError('');
     setReading(false);
+
     try {
       const result = await window.v.rewrite({
         originalText,
@@ -103,9 +115,10 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
         actionType: action,
         userSelected: true,
       });
-    } else {
-      setReplaceStatus(result.error ?? 'Replace failed');
+      return;
     }
+
+    setReplaceStatus(result.error ?? 'Replace failed');
   }
 
   async function rememberStyle(option: RewriteOption) {
@@ -123,15 +136,23 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
         <div>
           <strong style={{ fontSize: 18 }}>V</strong>
-          <div className="muted" style={{ fontSize: 12 }}>Writing companion</div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Writing companion
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className={`privacy-dot ${reading ? 'reading' : ''}`} title={reading ? 'Reading text' : 'Idle'} />
-          <button className="btn btn-ghost" onClick={() => window.v.hidePanel()}>Close</button>
+          <button className="btn btn-ghost" onClick={() => window.v.hidePanel()}>
+            Close
+          </button>
         </div>
       </div>
 
-      {error && <div className="error" style={{ marginBottom: 10 }}>{error}</div>}
+      {error && (
+        <div className="error" style={{ marginBottom: 10 }}>
+          {error}
+        </div>
+      )}
 
       {context && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -141,7 +162,9 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
         </div>
       )}
 
-      <label className="muted" style={{ fontSize: 12 }}>Original</label>
+      <label className="muted" style={{ fontSize: 12 }}>
+        Original
+      </label>
       <textarea className="textarea" value={originalText} onChange={(e) => setOriginalText(e.target.value)} />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
@@ -152,14 +175,17 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
       </div>
 
       <div className="grid-actions" style={{ marginTop: 10 }}>
-        {ACTIONS.filter((a) => a !== 'custom').map((a) => (
+        {ACTIONS.filter((candidate) => candidate !== 'custom').map((candidate) => (
           <button
-            key={a}
-            className={`btn ${action === a ? 'btn-primary' : ''}`}
-            onClick={() => { setAction(a); void runRewrite(a); }}
+            key={candidate}
+            className={`btn ${action === candidate ? 'btn-primary' : ''}`}
+            onClick={() => {
+              setAction(candidate);
+              void runRewrite(candidate);
+            }}
             disabled={loading}
           >
-            {ACTION_LABELS[a]?.split('—')[0]?.trim() ?? a}
+            {ACTION_LABELS[candidate]?.split(' - ')[0]?.trim() ?? candidate}
           </button>
         ))}
       </div>
@@ -172,22 +198,31 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
             value={customInstruction}
             onChange={(e) => setCustomInstruction(e.target.value)}
           />
-          <button className="btn btn-primary" style={{ marginTop: 8, width: '100%' }} onClick={() => void runRewrite('custom')} disabled={loading}>
+          <button
+            className="btn btn-primary"
+            style={{ marginTop: 8, width: '100%' }}
+            onClick={() => void runRewrite('custom')}
+            disabled={loading}
+          >
             Run custom rewrite
           </button>
         </div>
       )}
 
-      {loading && <div className="muted" style={{ marginTop: 12 }}>Rewriting…</div>}
+      {loading && (
+        <div className="muted" style={{ marginTop: 12 }}>
+          Rewriting...
+        </div>
+      )}
 
       {response && (
         <div style={{ marginTop: 12 }}>
           <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>
-            Intent: {response.analysisSummary.detectedIntent} · Tone: {response.analysisSummary.recommendedTone}
+            Intent: {response.analysisSummary.detectedIntent} | Tone: {response.analysisSummary.recommendedTone}
           </div>
           {response.analysisSummary.risksOrWarnings.length > 0 && (
             <div className="error" style={{ fontSize: 12, marginBottom: 8 }}>
-              {response.analysisSummary.risksOrWarnings.join(' · ')}
+              {response.analysisSummary.risksOrWarnings.join(' | ')}
             </div>
           )}
           {response.options.map((option, index) => (
@@ -195,21 +230,48 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
               <strong>{option.label}</strong>
               <p style={{ whiteSpace: 'pre-wrap', margin: '8px 0' }}>{option.text}</p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button className="btn btn-primary" onClick={() => { setSelectedOption(option); void replaceOption(option); }}>Replace selected text</button>
-                <button className="btn" onClick={() => void copyOption(option)}>Copy</button>
-                <button className="btn" onClick={() => void rememberStyle(option)}>Remember this style</button>
-                <button className="btn btn-ghost" onClick={() => setExpandedWhy(expandedWhy === index ? null : index)}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setSelectedOption(option);
+                    void replaceOption(option);
+                  }}
+                >
+                  Replace selected text
+                </button>
+                <button className="btn" onClick={() => void copyOption(option)}>
+                  Copy
+                </button>
+                <button className="btn" onClick={() => void rememberStyle(option)}>
+                  Remember this style
+                </button>
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => setExpandedWhy(expandedWhy === index ? null : index)}
+                >
                   Why this works
                 </button>
               </div>
-              {expandedWhy === index && <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>{option.whyThisWorks}</p>}
+              {expandedWhy === index && (
+                <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  {option.whyThisWorks}
+                </p>
+              )}
             </div>
           ))}
         </div>
       )}
 
-      {replaceStatus && <div className="success" style={{ marginTop: 10, fontSize: 12 }}>{replaceStatus}</div>}
-      {selectedOption && <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>Selected: {selectedOption.label}</div>}
+      {replaceStatus && (
+        <div className="success" style={{ marginTop: 10, fontSize: 12 }}>
+          {replaceStatus}
+        </div>
+      )}
+      {selectedOption && (
+        <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>
+          Selected: {selectedOption.label}
+        </div>
+      )}
     </div>
   );
 }

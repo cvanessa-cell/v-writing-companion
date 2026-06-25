@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "build": "node scripts/build.mjs",
+    "lint": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run"
   },
   "devDependencies": {
+    "@types/chrome": "^0.0.296",
     "esbuild": "^0.24.2",
     "jsdom": "^25.0.1",
     "typescript": "^5.7.2",

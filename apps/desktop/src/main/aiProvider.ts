@@ -262,7 +262,9 @@ class OpenAIProvider implements AIProvider {
 
   async analyzeText(input: RewriteRequest) { return (await this.rewriteText({ ...input, requestedAction: 'polish' })).analysisSummary; }
 
-  generateSuggestions(input, kind) { return callOpenAI(buildSuggestPrompt(input, kind)); }
+  generateSuggestions(input: RewriteRequest, kind: ProactiveSuggestionKind): Promise<RewriteResponse> {
+    return callOpenAI(buildSuggestPrompt(input, kind));
+  }
 
 }
 
@@ -274,7 +276,9 @@ class GeminiProvider implements AIProvider {
 
   async analyzeText(input: RewriteRequest) { return (await this.rewriteText({ ...input, requestedAction: 'polish' })).analysisSummary; }
 
-  generateSuggestions(input, kind) { return callGemini(buildSuggestPrompt(input, kind)); }
+  generateSuggestions(input: RewriteRequest, kind: ProactiveSuggestionKind): Promise<RewriteResponse> {
+    return callGemini(buildSuggestPrompt(input, kind));
+  }
 
 }
 

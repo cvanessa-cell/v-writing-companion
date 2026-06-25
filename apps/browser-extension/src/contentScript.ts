@@ -49,6 +49,7 @@ let activeField: HTMLElement | null = null;
 let bridgeSettings: Awaited<ReturnType<typeof getBridgeSettings>> = null;
 let lastSuggestionHash = '';
 let suggestInFlight = false;
+let settingsPollTimer: number | null = null;
 
 const typingMonitor = new TypingMonitor({
   pauseMs: 1200,
@@ -66,8 +67,30 @@ async function refreshSettings(): Promise<void> {
   }
 }
 
-void refreshSettings();
-setInterval(() => void refreshSettings(), 15000);
+function stopSettingsPolling(): void {
+  if (settingsPollTimer !== null) {
+    window.clearInterval(settingsPollTimer);
+    settingsPollTimer = null;
+  }
+}
+
+function startSettingsPolling(): void {
+  if (document.visibilityState !== 'visible' || settingsPollTimer !== null) return;
+  settingsPollTimer = window.setInterval(() => {
+    void refreshSettings();
+  }, 15000);
+}
+
+function syncSettingsPolling(): void {
+  if (document.visibilityState === 'visible') {
+    void refreshSettings();
+    startSettingsPolling();
+    return;
+  }
+  stopSettingsPolling();
+}
+
+syncSettingsPolling();
 
 function positionButton(field: HTMLElement) {
   if (!floatingBtn) return;
@@ -148,6 +171,7 @@ function showButtonFor(field: HTMLElement) {
   const meta = getFieldMetadata(field);
   if (isSensitiveField(field, meta)) return;
 
+  syncSettingsPolling();
   activeField = field;
   typingMonitor.handleFocus(field);
 
@@ -163,12 +187,15 @@ function showButtonFor(field: HTMLElement) {
 }
 
 document.addEventListener('focusin', (event) => {
+  syncSettingsPolling();
   const target = event.target;
+  if (!(target instanceof Element)) return;
   if (isTextField(target)) showButtonFor(target);
 });
 
 document.addEventListener('input', (event) => {
   const target = event.target;
+  if (!(target instanceof Element)) return;
   if (!isTextField(target)) return;
   showButtonFor(target);
   const { fullFieldText } = getFieldText(target);
@@ -191,6 +218,14 @@ document.addEventListener('focusout', () => {
       hideSuggestionOverlay();
     }
   }, 150);
+});
+
+document.addEventListener('visibilitychange', () => {
+  syncSettingsPolling();
+  if (document.visibilityState !== 'visible') {
+    typingMonitor.handleBlur();
+    hideSuggestionOverlay();
+  }
 });
 
 export {};

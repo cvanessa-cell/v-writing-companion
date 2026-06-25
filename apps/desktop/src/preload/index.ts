@@ -5,7 +5,9 @@ const api = {
   onPanelOpen: (callback: (payload: Record<string, unknown>) => void) => {
     const listener = (_: Electron.IpcRendererEvent, payload: Record<string, unknown>) => callback(payload);
     ipcRenderer.on('panel:open', listener);
-    return () => ipcRenderer.removeListener('panel:open', listener);
+    return () => {
+      ipcRenderer.removeListener('panel:open', listener);
+    };
   },
   captureSelected: (): Promise<{ text: string; error?: string; context: AppContext }> =>
     ipcRenderer.invoke('v:capture-selected'),

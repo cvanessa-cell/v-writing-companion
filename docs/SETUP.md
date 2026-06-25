@@ -23,19 +23,16 @@ Add `OPENAI_API_KEY` or `GEMINI_API_KEY` to `.env`.
 npm run dev
 ```
 
-## Build desktop app
+## Build desktop app and browser extension
 
 ```bash
 npm run build
 ```
 
-Output: `apps/desktop/out`
+Outputs:
 
-## Build browser extension
-
-```bash
-npm run build -w @v/browser-extension
-```
+- `apps/desktop/out`
+- `apps/browser-extension/dist`
 
 Load `apps/browser-extension/dist` as unpacked extension.
 
