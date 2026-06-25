@@ -161,7 +161,7 @@ The audit pointed to three high-confidence wins: root validation was not coverin
 ## 22. Git status
 
 - Pre-change commit SHA: `9e6a00c80e10934d74faf0d6dc1b41e717d4fffe`
-- Post-change commit SHA: `dcd287418ef75a777f9dd0d39149728d9de390ca`
+- Post-change commit SHA: `0d667c833f776a95cb71dd19546fd6b5fb9d221f`
 - Branch used: `main`
 - Checkpoint tag: `pre-follow-up-2026-06-25-11-58-34`
 - Remote target: `https://github.com/cvanessa-cell/v-writing-companion.git`
