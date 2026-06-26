@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MemoryCenter } from './MemoryCenter';
 import { AppRulesLibrary, OnboardingFlow } from './AppRulesLibrary';
+import { DiagnosticsCard } from './DiagnosticsCard';
 
 type SettingsPayload = Awaited<ReturnType<typeof window.v.getSettings>>;
 
@@ -20,7 +21,7 @@ export function SettingsPage() {
 
   if (!data) return <div className="settings-shell muted">Loading settings…</div>;
 
-  const { settings, providerStatus, bridgeUrl } = data;
+  const { settings, providerStatus, bridgeUrl, diagnostics } = data;
 
   return (
     <div className="settings-shell">
@@ -120,8 +121,9 @@ export function SettingsPage() {
             Save rewrite history
           </label>
           <div className="muted" style={{ marginTop: 12, fontSize: 12 }}>
-            Browser extension bridge: {bridgeUrl} · {providerStatus.configured ? 'Connected provider ready' : 'Using mock provider until API key is set'}
+            Browser extension bridge: {bridgeUrl} | {providerStatus.configured ? 'Connected provider ready' : 'Using mock provider until API key is set'}
           </div>
+          <DiagnosticsCard diagnostics={diagnostics} />
         </div>
       )}
 

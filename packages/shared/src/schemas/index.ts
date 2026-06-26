@@ -107,3 +107,12 @@ export const SuggestRequestSchema = BridgeRequestSchema.extend({
   trigger: SuggestionTriggerSchema,
   requestedAction: RewriteActionSchema.optional(),
 });
+
+export const DiagnosticsEventSchema = z.object({
+  eventName: z.string(),
+  source: z.enum(['desktop', 'extension', 'renderer']),
+  status: z.enum(['info', 'success', 'error']),
+  stage: z.string().optional(),
+  latencyMs: z.number().optional(),
+  detail: z.record(z.unknown()).optional(),
+});

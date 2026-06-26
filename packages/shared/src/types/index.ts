@@ -164,3 +164,12 @@ export interface ReplacementResult {
   clipboardRestored: boolean;
   error?: string;
 }
+
+export interface DiagnosticEvent {
+  eventName: string;
+  source: 'desktop' | 'extension' | 'renderer';
+  status: 'info' | 'success' | 'error';
+  stage?: string;
+  latencyMs?: number;
+  detail?: Record<string, unknown>;
+}

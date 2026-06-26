@@ -1,4 +1,4 @@
-import type { BridgeRequest, RewriteRequest, SuggestRequest } from '@v/shared';
+import type { BridgeRequest, DiagnosticEvent, RewriteRequest, SuggestRequest } from '@v/shared';
 import {
   detectSpeechDictationPatterns,
   inferProactiveSuggestionKind,
@@ -9,6 +9,7 @@ import { buildAppContext, getSavedMemories } from './memoryService';
 import { getSetting, isDomainExcluded, isPaused } from './database';
 import { getBridgeSettings } from './bridgeSettings';
 import { performProactiveSuggest, performRewrite } from './aiProvider';
+import { logDiagnosticEvent } from './diagnostics';
 
 function pickText(req: BridgeRequest): string {
   const rewriteOnlySelected = getSetting('rewrite_only_selected', 'true') === 'true';
@@ -41,6 +42,7 @@ function buildRewriteRequest(req: BridgeRequest, text: string, action: RewriteRe
 }
 
 export async function handleRewriteRequest(body: unknown) {
+  const startedAt = performance.now();
   if (isPaused()) return { success: false, error: 'V is paused' };
   const req = body as BridgeRequest;
   if (isDomainExcluded(req.domain)) return { success: false, error: 'Domain is excluded' };
@@ -48,11 +50,32 @@ export async function handleRewriteRequest(body: unknown) {
   if (!text) return { success: false, error: 'No text in field' };
   if (isSensitiveText(text)) return { success: false, error: 'Sensitive text blocked' };
   const rewriteRequest = buildRewriteRequest(req, text, 'polish');
-  const suggestions = await performRewrite(rewriteRequest);
-  return { success: true, suggestions, context: rewriteRequest.appContext };
+  try {
+    const suggestions = await performRewrite(rewriteRequest);
+    logDiagnosticEvent({
+      eventName: 'extension_rewrite_response',
+      source: 'extension',
+      status: 'success',
+      stage: 'rewrite',
+      latencyMs: performance.now() - startedAt,
+      detail: { domain: req.domain, options: suggestions.options.length },
+    });
+    return { success: true, suggestions, context: rewriteRequest.appContext };
+  } catch (error) {
+    logDiagnosticEvent({
+      eventName: 'extension_rewrite_response',
+      source: 'extension',
+      status: 'error',
+      stage: 'rewrite',
+      latencyMs: performance.now() - startedAt,
+      detail: { domain: req.domain, reason: error instanceof Error ? error.message : 'Unknown rewrite failure' },
+    });
+    throw error;
+  }
 }
 
 export async function handleSuggestRequest(body: unknown) {
+  const startedAt = performance.now();
   const settings = getBridgeSettings();
   if (settings.paused) return { success: false, error: 'V is paused' };
   const req = body as SuggestRequest;
@@ -98,10 +121,43 @@ export async function handleSuggestRequest(body: unknown) {
     };
   }
 
-  const result = await performProactiveSuggest(rewriteRequest, kind);
-  return { success: true, ...result, context: rewriteRequest.appContext };
+  try {
+    const result = await performProactiveSuggest(rewriteRequest, kind);
+    logDiagnosticEvent({
+      eventName: 'extension_suggest_response',
+      source: 'extension',
+      status: 'success',
+      stage: 'suggest',
+      latencyMs: performance.now() - startedAt,
+      detail: { domain: req.domain, trigger: req.trigger, kind },
+    });
+    return { success: true, ...result, context: rewriteRequest.appContext };
+  } catch (error) {
+    logDiagnosticEvent({
+      eventName: 'extension_suggest_response',
+      source: 'extension',
+      status: 'error',
+      stage: 'suggest',
+      latencyMs: performance.now() - startedAt,
+      detail: { domain: req.domain, trigger: req.trigger, reason: error instanceof Error ? error.message : 'Unknown suggest failure' },
+    });
+    throw error;
+  }
 }
 
 export function handleSettingsRequest() {
   return { success: true, settings: getBridgeSettings() };
+}
+
+export function handleEventRequest(body: unknown) {
+  const event = body as DiagnosticEvent;
+  logDiagnosticEvent({
+    eventName: event.eventName,
+    source: event.source,
+    status: event.status,
+    stage: event.stage,
+    latencyMs: event.latencyMs,
+    detail: event.detail ?? null,
+  });
+  return { success: true };
 }

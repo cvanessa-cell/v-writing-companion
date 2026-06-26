@@ -12,6 +12,15 @@ export interface BridgeSettingsResponse {
   };
 }
 
+export interface DiagnosticsEventPayload {
+  eventName: string;
+  source: 'extension';
+  status: 'info' | 'success' | 'error';
+  stage?: string;
+  latencyMs?: number;
+  detail?: Record<string, unknown>;
+}
+
 export async function getBridgeUrl(): Promise<string> {
   return new Promise((resolve) => {
     chrome.storage.sync.get(['bridgeUrl'], (result) => {
@@ -60,4 +69,17 @@ export async function sendSuggestRequest(payload: Record<string, unknown>) {
     body: JSON.stringify(payload),
   });
   return res.json();
+}
+
+export async function sendDiagnosticEvent(payload: DiagnosticsEventPayload) {
+  try {
+    const base = await getBridgeUrl();
+    await fetch(`${base}/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Best-effort local diagnostics only.
+  }
 }

@@ -115,6 +115,17 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL,
   updated_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS diagnostic_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_name TEXT NOT NULL,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL,
+  stage TEXT,
+  latency_ms REAL,
+  detail_json TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
 `;
 
 const DEFAULT_SETTINGS: Record<string, string> = {

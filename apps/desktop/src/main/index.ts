@@ -33,10 +33,11 @@ import {
   saveRememberedExample,
   saveRewriteHistory,
 } from './memoryService';
-import { getProviderStatus } from './aiProvider';
+import { getProviderStatus, performRewrite } from './aiProvider';
 import { startBridgeServer, stopBridgeServer } from './bridgeServer';
-import { handleRewriteRequest, handleSuggestRequest, handleSettingsRequest } from './bridgeHandlers';
-import { isSensitiveText } from '@v/shared';
+import { handleEventRequest, handleRewriteRequest, handleSuggestRequest, handleSettingsRequest } from './bridgeHandlers';
+import { isSensitiveText, type RewriteRequest } from '@v/shared';
+import { getDiagnosticsSummary, logDiagnosticEvent } from './diagnostics';
 
 import { existsSync } from 'fs';
 function loadEnvFiles(): void {
@@ -141,18 +142,47 @@ function showPanel(payload: Record<string, unknown>): void {
 }
 
 async function handleHotkeyTrigger(): Promise<void> {
+  const startedAt = performance.now();
+  logDiagnosticEvent({ eventName: 'hotkey_triggered', source: 'desktop', status: 'info', stage: 'capture' });
+
   if (isPaused()) {
+    logDiagnosticEvent({ eventName: 'hotkey_blocked', source: 'desktop', status: 'error', stage: 'capture', detail: { reason: 'paused' } });
     showPanel({ error: 'V is paused. Resume from tray or settings.' });
     return;
   }
 
+  const activeWindowStartedAt = performance.now();
   const active = await getActiveWindow();
+  logDiagnosticEvent({
+    eventName: 'active_window_resolved',
+    source: 'desktop',
+    status: active.processName === 'unknown' ? 'error' : 'success',
+    stage: 'capture',
+    latencyMs: performance.now() - activeWindowStartedAt,
+    detail: { processName: active.processName, appName: active.appName },
+  });
   if (isAppExcluded(active.processName) || isAppExcluded(active.appName)) {
+    logDiagnosticEvent({
+      eventName: 'capture_blocked',
+      source: 'desktop',
+      status: 'error',
+      stage: 'policy',
+      detail: { reason: 'excluded_app', appName: active.appName, processName: active.processName },
+    });
     showPanel({ error: `V will not read "${active.appName}". Remove it from exclusions to enable.` });
     return;
   }
 
+  const captureStartedAt = performance.now();
   const capture = await captureSelectedText();
+  logDiagnosticEvent({
+    eventName: 'capture_selected',
+    source: 'desktop',
+    status: capture.error || !capture.text ? 'error' : 'success',
+    stage: 'capture',
+    latencyMs: performance.now() - captureStartedAt,
+    detail: { hasText: Boolean(capture.text), clipboardRestored: capture.clipboardRestored, reason: capture.error ?? null },
+  });
   if (capture.error || !capture.text) {
     showPanel({
       error: capture.error ?? 'Select text first or enable active-field reading.',
@@ -166,18 +196,35 @@ async function handleHotkeyTrigger(): Promise<void> {
   }
 
   if (isSensitiveText(capture.text)) {
+    logDiagnosticEvent({
+      eventName: 'capture_blocked',
+      source: 'desktop',
+      status: 'error',
+      stage: 'policy',
+      detail: { reason: 'sensitive_text' },
+    });
     showPanel({ error: 'This text looks sensitive. V will not send it to AI.', context: null });
     return;
   }
 
+  const context = buildAppContext({
+    appName: active.appName,
+    windowTitle: active.title,
+    fileName: extractFileName(active.title),
+  });
+
   showPanel({
     originalText: capture.text,
-    context: buildAppContext({
-      appName: active.appName,
-      windowTitle: active.title,
-      fileName: extractFileName(active.title),
-    }),
+    context,
     privacyReading: true,
+  });
+  logDiagnosticEvent({
+    eventName: 'hotkey_panel_ready',
+    source: 'desktop',
+    status: 'success',
+    stage: 'capture',
+    latencyMs: performance.now() - startedAt,
+    detail: { appName: active.appName, writingMode: context.writingMode },
   });
 }
 
@@ -239,9 +286,52 @@ function registerIpc(): void {
     });
   });
 
-  ipcMain.handle('v:rewrite', async (_e, request: RewriteRequest) => performRewrite(request));
+  ipcMain.handle('v:rewrite', async (_e, request: RewriteRequest) => {
+    const startedAt = performance.now();
+    try {
+      const result = await performRewrite(request);
+      logDiagnosticEvent({
+        eventName: 'rewrite_completed',
+        source: 'desktop',
+        status: 'success',
+        stage: 'rewrite',
+        latencyMs: performance.now() - startedAt,
+        detail: { action: request.requestedAction, appName: request.appContext.appName, options: result.options.length },
+      });
+      return result;
+    } catch (error) {
+      logDiagnosticEvent({
+        eventName: 'rewrite_failed',
+        source: 'desktop',
+        status: 'error',
+        stage: 'rewrite',
+        latencyMs: performance.now() - startedAt,
+        detail: { action: request.requestedAction, appName: request.appContext.appName, reason: error instanceof Error ? error.message : 'Unknown rewrite failure' },
+      });
+      throw error;
+    }
+  });
 
-  ipcMain.handle('v:replace-text', async (_e, text: string) => replaceSelectedText(text));
+  ipcMain.handle('v:replace-text', async (_e, text: string) => {
+    const startedAt = performance.now();
+    const result = await replaceSelectedText(text);
+    logDiagnosticEvent({
+      eventName: 'replace_selected_text',
+      source: 'desktop',
+      status: result.success ? 'success' : 'error',
+      stage: 'replace',
+      latencyMs: performance.now() - startedAt,
+      detail: { clipboardRestored: result.clipboardRestored, reason: result.error ?? null },
+    });
+    logDiagnosticEvent({
+      eventName: result.success ? 'replace_succeeded' : 'replace_failed',
+      source: 'desktop',
+      status: result.success ? 'success' : 'error',
+      stage: 'replace',
+      detail: result.error ? { reason: result.error } : null,
+    });
+    return result;
+  });
 
   ipcMain.handle('v:get-settings', () => ({
     settings: {
@@ -262,6 +352,7 @@ function registerIpc(): void {
     },
     providerStatus: getProviderStatus(),
     bridgeUrl: `http://127.0.0.1:${getSetting('bridge_port', '47821')}`,
+    diagnostics: getDiagnosticsSummary(),
   }));
 
   ipcMain.handle('v:save-setting', (_e, key: string, value: string) => {
@@ -289,6 +380,11 @@ function registerIpc(): void {
   }) => saveRewriteHistory(payload));
 
   ipcMain.handle('v:get-saved-memories', () => getSavedMemories());
+  ipcMain.handle('v:track-event', (_e, payload: Record<string, unknown>) => {
+    handleEventRequest({ source: 'renderer', status: 'info', ...payload });
+    return true;
+  });
+  ipcMain.handle('v:export-diagnostics', () => JSON.stringify(getDiagnosticsSummary(), null, 2));
   ipcMain.handle('v:read-clipboard', () => readClipboardText());
   ipcMain.handle('v:open-external', (_e, url: string) => shell.openExternal(url));
   ipcMain.handle('v:hide-panel', () => panelWindow?.hide());
@@ -309,11 +405,24 @@ app.whenReady().then(() => {
     rewrite: handleRewriteRequest,
     suggest: handleSuggestRequest,
     settings: handleSettingsRequest,
+    track: handleEventRequest,
+  });
+  logDiagnosticEvent({
+    eventName: 'app_launched',
+    source: 'desktop',
+    status: 'success',
+    stage: 'startup',
+    detail: { providerConfigured: getProviderStatus().configured },
   });
 
-  if (getSetting('onboarding_complete', 'false') !== 'true') {
+  const showSettingsOnLaunch =
+    getSetting('onboarding_complete', 'false') !== 'true' ||
+    Boolean(process.env.ELECTRON_RENDERER_URL);
+
+  if (showSettingsOnLaunch) {
     if (!settingsWindow) settingsWindow = createSettingsWindow();
     settingsWindow.show();
+    settingsWindow.focus();
   }
 });
 

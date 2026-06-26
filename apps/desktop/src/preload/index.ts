@@ -30,6 +30,10 @@ const api = {
     originalText: string; rewrittenText: string; appName: string | null; domain: string | null;
     writingGoal: string | null; audience: string | null; subject: string | null; actionType: string; userSelected: boolean;
   }) => ipcRenderer.invoke('v:save-history', payload),
+  trackEvent: (payload: {
+    eventName: string; status?: 'info' | 'success' | 'error'; stage?: string; latencyMs?: number; detail?: Record<string, unknown>;
+  }) => ipcRenderer.invoke('v:track-event', payload),
+  exportDiagnostics: () => ipcRenderer.invoke('v:export-diagnostics'),
   readClipboard: () => ipcRenderer.invoke('v:read-clipboard'),
   openExternal: (url: string) => ipcRenderer.invoke('v:open-external', url),
   hidePanel: () => ipcRenderer.invoke('v:hide-panel'),

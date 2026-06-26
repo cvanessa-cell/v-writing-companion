@@ -6,9 +6,9 @@ import {
   isTextField,
   replaceFieldText,
 } from './fieldDetector';
-import { getBridgeSettings, sendRewriteRequest, sendSuggestRequest } from './bridgeClient';
+import { getBridgeSettings, sendDiagnosticEvent, sendRewriteRequest, sendSuggestRequest } from './bridgeClient';
 import { TypingMonitor } from './typingMonitor';
-import { hideSuggestionOverlay, positionOverlay, showSuggestionOverlay } from './suggestionOverlay';
+import { hideSuggestionOverlay, positionOverlay, showStatusOverlay, showSuggestionOverlay } from './suggestionOverlay';
 import { detectSpeechDictationPatterns } from '@v/shared';
 
 const EXCLUDED_SCHEMES = ['chrome://', 'edge://', 'about:', 'chrome-extension://'];
@@ -114,14 +114,88 @@ async function handleRewrite(field: HTMLElement) {
   const meta = getFieldMetadata(field);
   if (isSensitiveField(field, meta)) return;
   const payload = buildPayload(field);
-  const result = await sendRewriteRequest(payload);
-  if (!result?.success || !result?.suggestions?.options?.length) {
-    alert(result?.error ?? 'V could not rewrite this field. Is the desktop app running?');
-    return;
+  const startedAt = performance.now();
+  await sendDiagnosticEvent({
+    eventName: 'extension_rewrite_requested',
+    source: 'extension',
+    status: 'info',
+    stage: 'rewrite',
+    detail: { domain: location.hostname },
+  });
+  try {
+    const result = await sendRewriteRequest(payload);
+    if (!result?.success || !result?.suggestions?.options?.length) {
+      await sendDiagnosticEvent({
+        eventName: 'bridge_unavailable',
+        source: 'extension',
+        status: 'error',
+        stage: 'rewrite',
+        detail: { domain: location.hostname, reason: result?.error ?? 'No suggestions returned' },
+      });
+      showStatusOverlay(field, {
+        tone: 'error',
+        headline: 'V could not rewrite this field',
+        message: result?.error ?? 'Check that the desktop app is running and the local bridge is reachable.',
+      });
+      return;
+    }
+
+    const chosen = result.suggestions.options[0];
+    await sendDiagnosticEvent({
+      eventName: 'extension_rewrite_review_shown',
+      source: 'extension',
+      status: 'success',
+      stage: 'rewrite',
+      latencyMs: performance.now() - startedAt,
+      detail: { domain: location.hostname },
+    });
+    showStatusOverlay(field, {
+      headline: chosen.label || 'Review rewrite',
+      message: chosen.text,
+      actions: [
+        {
+          label: 'Accept',
+          variant: 'primary',
+          onClick: () => {
+            replaceFieldText(field, chosen.text);
+            void sendDiagnosticEvent({
+              eventName: 'extension_rewrite_accepted',
+              source: 'extension',
+              status: 'success',
+              stage: 'rewrite',
+              detail: { domain: location.hostname },
+            });
+          },
+        },
+        {
+          label: 'Dismiss',
+          variant: 'secondary',
+          onClick: () => {
+            void sendDiagnosticEvent({
+              eventName: 'extension_rewrite_dismissed',
+              source: 'extension',
+              status: 'info',
+              stage: 'rewrite',
+              detail: { domain: location.hostname },
+            });
+          },
+        },
+      ],
+    });
+  } catch (error) {
+    await sendDiagnosticEvent({
+      eventName: 'bridge_unavailable',
+      source: 'extension',
+      status: 'error',
+      stage: 'rewrite',
+      detail: { domain: location.hostname, reason: error instanceof Error ? error.message : 'Bridge request failed' },
+    });
+    showStatusOverlay(field, {
+      tone: 'error',
+      headline: 'Desktop bridge unavailable',
+      message: 'Open the V desktop app, then try again.',
+    });
   }
-  const chosen = result.suggestions.options[0];
-  const approved = confirm(`Replace field text with:\n\n${chosen.text.slice(0, 500)}`);
-  if (approved) replaceFieldText(field, chosen.text);
 }
 
 async function handlePauseSuggestion(field: HTMLElement, text: string) {
@@ -153,12 +227,35 @@ async function handlePauseSuggestion(field: HTMLElement, text: string) {
     if (result.suggestion.kind === 'good_as_is') return;
 
     lastSuggestionHash = nextHash;
+    void sendDiagnosticEvent({
+      eventName: 'suggestion_shown',
+      source: 'extension',
+      status: 'success',
+      stage: 'suggest',
+      detail: { domain: location.hostname, kind: result.suggestion.kind },
+    });
     showSuggestionOverlay(field, result.suggestion, {
       onAccept: () => {
         const replaceText = result.suggestion.replaceFullField ? result.suggestion.text : result.suggestion.text;
         replaceFieldText(field, replaceText);
+        void sendDiagnosticEvent({
+          eventName: 'suggestion_accepted',
+          source: 'extension',
+          status: 'success',
+          stage: 'suggest',
+          detail: { domain: location.hostname, kind: result.suggestion.kind },
+        });
       },
-      onDismiss: () => hideSuggestionOverlay(),
+      onDismiss: () => {
+        hideSuggestionOverlay();
+        void sendDiagnosticEvent({
+          eventName: 'suggestion_dismissed',
+          source: 'extension',
+          status: 'info',
+          stage: 'suggest',
+          detail: { domain: location.hostname, kind: result.suggestion.kind },
+        });
+      },
       onOpenPanel: () => void handleRewrite(field),
     });
   } finally {
@@ -181,6 +278,13 @@ function showButtonFor(field: HTMLElement) {
     floatingBtn.addEventListener('mousedown', (e) => e.preventDefault());
     floatingBtn.addEventListener('click', () => {
       if (activeField) void handleRewrite(activeField);
+    });
+    void sendDiagnosticEvent({
+      eventName: 'rewrite_button_shown',
+      source: 'extension',
+      status: 'info',
+      stage: 'ui',
+      detail: { domain: location.hostname },
     });
   }
   positionButton(field);

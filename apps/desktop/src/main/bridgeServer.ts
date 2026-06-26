@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'http';
-import { BridgeRequestSchema, SuggestRequestSchema } from '@v/shared';
+import { BridgeRequestSchema, DiagnosticsEventSchema, SuggestRequestSchema } from '@v/shared';
 import { getSetting } from './database';
 
 type RouteHandler = (body: unknown) => Promise<unknown> | unknown;
@@ -8,6 +8,7 @@ export interface BridgeRoutes {
   rewrite: RouteHandler;
   suggest: RouteHandler;
   settings: RouteHandler;
+  track: RouteHandler;
 }
 
 let server: ReturnType<typeof createServer> | null = null;
@@ -63,6 +64,13 @@ export function startBridgeServer(routes: BridgeRoutes): number {
         const raw = await readBody(req);
         const parsed = SuggestRequestSchema.parse(JSON.parse(raw));
         sendJson(res, 200, await routes.suggest(parsed));
+        return;
+      }
+
+      if (req.url === '/event' && req.method === 'POST') {
+        const raw = await readBody(req);
+        const parsed = DiagnosticsEventSchema.parse(JSON.parse(raw));
+        sendJson(res, 200, await routes.track(parsed));
         return;
       }
 
