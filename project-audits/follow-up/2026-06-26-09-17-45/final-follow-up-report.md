@@ -82,6 +82,7 @@ This run converted the June 26 audit into product changes instead of another sta
 - `npm run build`
 - `npx electron-builder --projectDir apps/desktop --config electron-builder.json --dir`
 - `git commit -m "follow-up: improve product pipelines after performance audit"`
+- `git commit -m "follow-up: finalize audit report metadata"`
 
 ## 9. Tests/build results
 
@@ -155,7 +156,7 @@ This run converted the June 26 audit into product changes instead of another sta
 ## 22. Git status
 
 - Pre-change commit SHA: `b3ee3b898b9bf9d7d9dfc47c00f676f7901694d4`
-- Post-change commit SHA: `dc5331a82cd18fd3410510221abaa4fb279b3b2d`
+- Post-change commit SHA: `658ba87814576a7ed84492c7ee5cb06db5510ca1`
 - Branch used: `main`
 - Checkpoint tag: `pre-follow-up-2026-06-26-09-17-45`
 - Remote target: `https://github.com/cvanessa-cell/v-writing-companion.git`
