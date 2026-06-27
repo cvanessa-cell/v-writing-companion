@@ -123,6 +123,9 @@ export interface BridgeSettings {
   minCharsForSuggestion: number;
   speechCleanupMode: 'off' | 'auto' | 'manual';
   rewriteOnlySelected: boolean;
+  extensionDomainMode: 'all' | 'allowlist';
+  extensionAllowedDomains: string[];
+  excludedDomains: string[];
 }
 
 export interface SuggestRequest extends BridgeRequest {

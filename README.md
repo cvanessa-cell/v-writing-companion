@@ -1,16 +1,30 @@
 # V - Universal AI Writing Companion
 
-V is a Windows desktop writing companion that rewrites selected text across desktop apps and browser text fields while keeping rules, privacy controls, and optional local history under your control.
+V helps you rewrite text inside Windows apps and browser fields without forcing you into a separate chat tab. It is designed for people who need faster, cleaner writing in the tools they already use while keeping privacy controls, exclusions, and local diagnostics in their own desktop app.
 
 See [docs/SETUP.md](docs/SETUP.md), [docs/EXTENSION_SETUP.md](docs/EXTENSION_SETUP.md), and [docs/PRIVACY.md](docs/PRIVACY.md) for setup and privacy details.
 
-## What you get
+## Who it helps
 
-- Desktop rewrite panel for selected text with app-aware guidance
-- Browser extension bridge for in-field rewrites and suggestions
-- Local memory, exclusions, and history controls in the desktop settings UI
+- People who write across email, docs, forms, and browser text fields all day
+- Users who want rewrite help without moving text into a separate website
+- Owners who need local controls for privacy, exclusions, and troubleshooting
 
-## Quick start
+## What you get immediately
+
+- Desktop hotkey rewrite panel for selected text with app-aware guidance
+- Browser extension bridge for inline rewrites and non-blocking suggestions
+- Local settings for exclusions, memory, rewrite history, and activation scope
+- Local diagnostics for rewrite counts, failures, bridge health, and latency
+
+## How it works
+
+1. Select text in a desktop app or focus a supported browser field.
+2. Trigger V with `Ctrl+Shift+Space` or the inline browser action.
+3. Review the rewritten text and accept, copy, or replace it in place.
+4. Tune privacy and domain controls from the desktop settings window.
+
+## First-minute path
 
 ```powershell
 cd C:\Users\cvane\V
@@ -19,4 +33,4 @@ copy .env.example .env
 npm run dev
 ```
 
-Select text, press `Ctrl+Shift+Space`, review the rewrite, then copy or replace.
+After launch, connect your provider, open the browser extension if you use it, then run one desktop rewrite and one browser-field rewrite. The settings screen will start capturing local diagnostics so you can verify that bridge, capture, and rewrite stages are working.

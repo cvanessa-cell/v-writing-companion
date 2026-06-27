@@ -33,6 +33,9 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12 }}>
             Last successful rewrite: {diagnostics.lastSuccessfulRewriteAt ?? 'None yet'}
           </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Last bridge connection: {diagnostics.lastBridgeConnectedAt ?? 'None yet'}
+          </div>
           <div className="muted" style={{ fontSize: 12 }}>Last failure: {failureSummary}</div>
         </div>
 
@@ -42,6 +45,7 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12 }}>Hotkeys triggered: {diagnostics.counts.hotkeyTriggered}</div>
           <div className="muted" style={{ fontSize: 12 }}>Rewrites completed: {diagnostics.counts.rewriteCompleted}</div>
           <div className="muted" style={{ fontSize: 12 }}>Suggestions accepted: {diagnostics.counts.suggestionAccepted}</div>
+          <div className="muted" style={{ fontSize: 12 }}>Bridge reconnects: {diagnostics.counts.bridgeConnected}</div>
         </div>
 
         <div className="option-card" style={{ marginTop: 0 }}>
@@ -49,6 +53,7 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Rewrite failures: {diagnostics.counts.rewriteFailed}</div>
           <div className="muted" style={{ fontSize: 12 }}>Replace failures: {diagnostics.counts.replaceFailed}</div>
           <div className="muted" style={{ fontSize: 12 }}>Bridge unavailable: {diagnostics.counts.bridgeUnavailable}</div>
+          <div className="muted" style={{ fontSize: 12 }}>Activation blocked: {diagnostics.counts.activationBlocked}</div>
         </div>
 
         <div className="option-card" style={{ marginTop: 0 }}>
@@ -65,6 +70,44 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12 }}>
             Replace text: {formatLatency(diagnostics.latencyMs.replaceText)}
           </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Bridge rewrite: {formatLatency(diagnostics.latencyMs.bridgeRewrite)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Bridge suggest: {formatLatency(diagnostics.latencyMs.bridgeSuggest)}
+          </div>
+        </div>
+      </div>
+
+      <div className="diagnostics-grid" style={{ marginTop: 16 }}>
+        <div className="option-card" style={{ marginTop: 0 }}>
+          <strong>Top failure reasons</strong>
+          {diagnostics.topFailureReasons.length === 0 ? (
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>No recent failures.</div>
+          ) : (
+            <div style={{ marginTop: 8 }}>
+              {diagnostics.topFailureReasons.map((item: { label: string; count: number }) => (
+                <div key={item.label} className="muted" style={{ fontSize: 12 }}>
+                  {item.label}: {item.count}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="option-card" style={{ marginTop: 0 }}>
+          <strong>Problem domains</strong>
+          {diagnostics.topProblemDomains.length === 0 ? (
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>No recent domain hotspots.</div>
+          ) : (
+            <div style={{ marginTop: 8 }}>
+              {diagnostics.topProblemDomains.map((item: { label: string; count: number }) => (
+                <div key={item.label} className="muted" style={{ fontSize: 12 }}>
+                  {item.label}: {item.count}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

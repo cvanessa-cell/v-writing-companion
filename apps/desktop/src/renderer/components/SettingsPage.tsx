@@ -10,6 +10,7 @@ export function SettingsPage() {
   const [tab, setTab] = useState<'general' | 'privacy' | 'memory' | 'rules'>('general');
   const [excludeApp, setExcludeApp] = useState('');
   const [excludeDomain, setExcludeDomain] = useState('');
+  const [allowedDomainsDraft, setAllowedDomainsDraft] = useState('');
 
   async function refresh() {
     setData(await window.v.getSettings());
@@ -18,6 +19,11 @@ export function SettingsPage() {
   useEffect(() => {
     void refresh();
   }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    setAllowedDomainsDraft(data.settings.extension_allowed_domains ?? '');
+  }, [data]);
 
   if (!data) return <div className="settings-shell muted">Loading settings…</div>;
 
@@ -151,11 +157,40 @@ export function SettingsPage() {
             />
             Show privacy indicator
           </label>
+          <label className="muted" style={{ marginTop: 12, display: 'block' }}>Browser activation scope</label>
+          <select
+            className="select"
+            value={settings.extension_domain_mode ?? 'all'}
+            onChange={(e) => void window.v.saveSetting('extension_domain_mode', e.target.value).then(refresh)}
+          >
+            <option value="all">All supported pages</option>
+            <option value="allowlist">Only allowlisted domains</option>
+          </select>
+          <label className="muted" style={{ marginTop: 12, display: 'block' }}>
+            Allowlisted domains
+          </label>
+          <textarea
+            className="input"
+            rows={4}
+            value={allowedDomainsDraft}
+            placeholder={'mail.google.com\nnotion.so\nlinkedin.com'}
+            onChange={(e) => setAllowedDomainsDraft(e.target.value)}
+          />
+          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+            One domain per line or comma separated. Subdomains inherit from the parent domain.
+          </div>
+          <button
+            className="btn"
+            style={{ marginTop: 8 }}
+            onClick={() => void window.v.saveSetting('extension_allowed_domains', allowedDomainsDraft).then(refresh)}
+          >
+            Save activation scope
+          </button>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginTop: 12 }}>
             <input className="input" placeholder="Never read this app" value={excludeApp} onChange={(e) => setExcludeApp(e.target.value)} />
             <button className="btn" onClick={() => void window.v.addExcludedApp(excludeApp, 'User excluded').then(() => setExcludeApp(''))}>Add app</button>
             <input className="input" placeholder="Never read this domain" value={excludeDomain} onChange={(e) => setExcludeDomain(e.target.value)} />
-            <button className="btn" onClick={() => void window.v.addExcludedDomain(excludeDomain, 'User excluded').then(() => setExcludeDomain(''))}>Add domain</button>
+            <button className="btn" onClick={() => void window.v.addExcludedDomain(excludeDomain, 'User excluded').then(() => { setExcludeDomain(''); void refresh(); })}>Add domain</button>
           </div>
         </div>
       )}

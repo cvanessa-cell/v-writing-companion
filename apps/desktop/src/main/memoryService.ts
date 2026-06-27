@@ -178,7 +178,14 @@ export function addExcludedApp(appName: string, reason: string): void {
 export function addExcludedDomain(domain: string, reason: string): void {
   getDatabase()
     .prepare('INSERT OR IGNORE INTO excluded_domains (domain, reason) VALUES (?, ?)')
-    .run(domain, reason);
+    .run(domain.trim().toLowerCase(), reason);
+}
+
+export function listExcludedDomains(): string[] {
+  return (getDatabase()
+    .prepare('SELECT domain FROM excluded_domains ORDER BY domain')
+    .all() as { domain: string }[])
+    .map((row) => row.domain);
 }
 
 export function updateUserProfile(fields: Record<string, unknown>): void {

@@ -1,15 +1,10 @@
+import type { BridgeSettings } from '@v/shared';
+
 const DEFAULT_BRIDGE = 'http://127.0.0.1:47821';
 
 export interface BridgeSettingsResponse {
   success: boolean;
-  settings?: {
-    paused: boolean;
-    realtimeSuggestions: boolean;
-    realtimePauseMs: number;
-    minCharsForSuggestion: number;
-    speechCleanupMode: 'off' | 'auto' | 'manual';
-    rewriteOnlySelected: boolean;
-  };
+  settings?: BridgeSettings;
 }
 
 export interface DiagnosticsEventPayload {

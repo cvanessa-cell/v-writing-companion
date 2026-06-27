@@ -116,3 +116,15 @@ export const DiagnosticsEventSchema = z.object({
   latencyMs: z.number().optional(),
   detail: z.record(z.unknown()).optional(),
 });
+
+export const BridgeSettingsSchema = z.object({
+  paused: z.boolean(),
+  realtimeSuggestions: z.boolean(),
+  realtimePauseMs: z.number(),
+  minCharsForSuggestion: z.number(),
+  speechCleanupMode: z.enum(['off', 'auto', 'manual']),
+  rewriteOnlySelected: z.boolean(),
+  extensionDomainMode: z.enum(['all', 'allowlist']),
+  extensionAllowedDomains: z.array(z.string()),
+  excludedDomains: z.array(z.string()),
+});

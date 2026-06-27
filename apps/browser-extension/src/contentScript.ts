@@ -7,15 +7,10 @@ import {
   replaceFieldText,
 } from './fieldDetector';
 import { getBridgeSettings, sendDiagnosticEvent, sendRewriteRequest, sendSuggestRequest } from './bridgeClient';
+import { evaluateDomainAccess } from './domainAccess';
 import { TypingMonitor } from './typingMonitor';
 import { hideSuggestionOverlay, positionOverlay, showStatusOverlay, showSuggestionOverlay } from './suggestionOverlay';
 import { detectSpeechDictationPatterns } from '@v/shared';
-
-const EXCLUDED_SCHEMES = ['chrome://', 'edge://', 'about:', 'chrome-extension://'];
-
-function isExcludedLocation(): boolean {
-  return EXCLUDED_SCHEMES.some((prefix) => location.href.startsWith(prefix));
-}
 
 function buildPayload(field: HTMLElement) {
   const meta = getFieldMetadata(field);
@@ -50,6 +45,8 @@ let bridgeSettings: Awaited<ReturnType<typeof getBridgeSettings>> = null;
 let lastSuggestionHash = '';
 let suggestInFlight = false;
 let settingsPollTimer: number | null = null;
+let bridgeConnectionState: 'unknown' | 'connected' | 'unavailable' = 'unknown';
+let lastAccessReason: string | null = null;
 
 const typingMonitor = new TypingMonitor({
   pauseMs: 1200,
@@ -58,13 +55,40 @@ const typingMonitor = new TypingMonitor({
 });
 
 async function refreshSettings(): Promise<void> {
-  bridgeSettings = await getBridgeSettings();
-  if (bridgeSettings) {
-    typingMonitor.updateOptions({
-      pauseMs: bridgeSettings.realtimePauseMs,
-      minChars: bridgeSettings.minCharsForSuggestion,
+  const nextSettings = await getBridgeSettings();
+  bridgeSettings = nextSettings;
+
+  if (!nextSettings) {
+    if (bridgeConnectionState !== 'unavailable') {
+      bridgeConnectionState = 'unavailable';
+      await sendDiagnosticEvent({
+        eventName: 'bridge_unavailable',
+        source: 'extension',
+        status: 'error',
+        stage: 'settings',
+        detail: { domain: location.hostname, reason: 'settings_fetch_failed' },
+      });
+    }
+    return;
+  }
+
+  typingMonitor.updateOptions({
+    pauseMs: nextSettings.realtimePauseMs,
+    minChars: nextSettings.minCharsForSuggestion,
+  });
+
+  if (bridgeConnectionState !== 'connected') {
+    bridgeConnectionState = 'connected';
+    await sendDiagnosticEvent({
+      eventName: 'extension_bridge_connected',
+      source: 'extension',
+      status: 'success',
+      stage: 'settings',
+      detail: { domain: location.hostname, mode: nextSettings.extensionDomainMode },
     });
   }
+
+  syncAccessDiagnostics();
 }
 
 function stopSettingsPolling(): void {
@@ -92,6 +116,25 @@ function syncSettingsPolling(): void {
 
 syncSettingsPolling();
 
+function getAccessDecision() {
+  return evaluateDomainAccess(location.href, location.hostname, bridgeSettings ?? null);
+}
+
+function syncAccessDiagnostics(): void {
+  const decision = getAccessDecision();
+  const reason = decision.allowed ? null : decision.reason;
+  if (reason === lastAccessReason) return;
+  lastAccessReason = reason;
+  if (!reason) return;
+  void sendDiagnosticEvent({
+    eventName: 'extension_activation_blocked',
+    source: 'extension',
+    status: 'info',
+    stage: 'policy',
+    detail: { domain: location.hostname, reason },
+  });
+}
+
 function positionButton(field: HTMLElement) {
   if (!floatingBtn) return;
   const rect = field.getBoundingClientRect();
@@ -110,6 +153,11 @@ function hashText(text: string): string {
 }
 
 async function handleRewrite(field: HTMLElement) {
+  const access = getAccessDecision();
+  if (!access.allowed) {
+    syncAccessDiagnostics();
+    return;
+  }
   hideSuggestionOverlay();
   const meta = getFieldMetadata(field);
   if (isSensitiveField(field, meta)) return;
@@ -199,7 +247,11 @@ async function handleRewrite(field: HTMLElement) {
 }
 
 async function handlePauseSuggestion(field: HTMLElement, text: string) {
-  if (isExcludedLocation()) return;
+  const access = getAccessDecision();
+  if (!access.allowed) {
+    syncAccessDiagnostics();
+    return;
+  }
   if (bridgeSettings?.paused) return;
 
   const meta = getFieldMetadata(field);
@@ -264,11 +316,14 @@ async function handlePauseSuggestion(field: HTMLElement, text: string) {
 }
 
 function showButtonFor(field: HTMLElement) {
-  if (isExcludedLocation()) return;
+  const access = getAccessDecision();
+  if (!access.allowed) {
+    hideButton();
+    syncAccessDiagnostics();
+    return;
+  }
   const meta = getFieldMetadata(field);
   if (isSensitiveField(field, meta)) return;
-
-  syncSettingsPolling();
   activeField = field;
   typingMonitor.handleFocus(field);
 
@@ -326,6 +381,7 @@ document.addEventListener('focusout', () => {
 
 document.addEventListener('visibilitychange', () => {
   syncSettingsPolling();
+  syncAccessDiagnostics();
   if (document.visibilityState !== 'visible') {
     typingMonitor.handleBlur();
     hideSuggestionOverlay();

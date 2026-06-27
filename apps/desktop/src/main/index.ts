@@ -349,6 +349,8 @@ function registerIpc(): void {
       realtime_pause_ms: getSetting('realtime_pause_ms'),
       min_chars_for_suggestion: getSetting('min_chars_for_suggestion'),
       speech_cleanup_mode: getSetting('speech_cleanup_mode'),
+      extension_domain_mode: getSetting('extension_domain_mode'),
+      extension_allowed_domains: getSetting('extension_allowed_domains'),
     },
     providerStatus: getProviderStatus(),
     bridgeUrl: `http://127.0.0.1:${getSetting('bridge_port', '47821')}`,

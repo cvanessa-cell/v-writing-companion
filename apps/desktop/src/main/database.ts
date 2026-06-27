@@ -143,6 +143,8 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   realtime_pause_ms: '1200',
   min_chars_for_suggestion: '20',
   speech_cleanup_mode: 'auto',
+  extension_domain_mode: 'all',
+  extension_allowed_domains: '',
 };
 
 export function getDbPath(): string {

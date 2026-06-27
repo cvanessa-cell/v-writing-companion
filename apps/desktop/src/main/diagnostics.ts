@@ -23,6 +23,11 @@ interface DiagnosticRow {
   created_at: string;
 }
 
+interface CountSummary {
+  label: string;
+  count: number;
+}
+
 function sanitizeValue(value: unknown): unknown {
   if (value == null) return value;
   if (typeof value === 'string') {
@@ -51,6 +56,12 @@ function parseDetail(raw: string | null): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function getDetailField(row: DiagnosticRow, key: string): string | null {
+  const detail = parseDetail(row.detail_json);
+  const value = detail?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 function summarizeLatency(rows: DiagnosticRow[], eventName: string) {
@@ -128,11 +139,30 @@ export function getDiagnosticsSummary() {
   const lastRewriteSuccess = rows.find((row) =>
     ['rewrite_completed', 'extension_rewrite_accepted', 'suggestion_accepted'].includes(row.event_name),
   ) ?? null;
+  const lastBridgeConnected = rows.find((row) => row.event_name === 'extension_bridge_connected') ?? null;
+
+  const failureReasons = summarizeCounts(
+    rows
+      .filter((row) => row.status === 'error')
+      .map((row) => getDetailField(row, 'reason') ?? row.event_name),
+  );
+
+  const domainHotspots = summarizeCounts(
+    rows
+      .filter((row) =>
+        row.event_name === 'bridge_unavailable' ||
+        row.event_name === 'extension_activation_blocked' ||
+        row.status === 'error',
+      )
+      .map((row) => getDetailField(row, 'domain'))
+      .filter((value): value is string => Boolean(value)),
+  );
 
   return {
     eventCountLast7Days: rows.length,
     lastEventAt: rows[0]?.created_at ?? null,
     lastSuccessfulRewriteAt: lastRewriteSuccess?.created_at ?? null,
+    lastBridgeConnectedAt: lastBridgeConnected?.created_at ?? null,
     lastFailure: lastFailure
       ? {
           eventName: lastFailure.event_name,
@@ -152,6 +182,8 @@ export function getDiagnosticsSummary() {
       suggestionShown: counts.suggestion_shown ?? 0,
       suggestionAccepted: counts.suggestion_accepted ?? 0,
       bridgeUnavailable: counts.bridge_unavailable ?? 0,
+      bridgeConnected: counts.extension_bridge_connected ?? 0,
+      activationBlocked: counts.extension_activation_blocked ?? 0,
     },
     latencyMs: {
       hotkeyToPanel: summarizeLatency(rows, 'hotkey_panel_ready'),
@@ -161,6 +193,19 @@ export function getDiagnosticsSummary() {
       bridgeRewrite: summarizeLatency(rows, 'extension_rewrite_response'),
       bridgeSuggest: summarizeLatency(rows, 'extension_suggest_response'),
     },
+    topFailureReasons: failureReasons,
+    topProblemDomains: domainHotspots,
     recentEvents: getDiagnosticEvents(12),
   };
+}
+
+function summarizeCounts(values: string[]): CountSummary[] {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 5)
+    .map(([label, count]) => ({ label, count }));
 }
