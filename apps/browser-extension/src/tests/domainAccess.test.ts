@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from 'vitest';
-import { evaluateDomainAccess, hostnameMatchesEntry, normalizeDomainEntries } from '../domainAccess';
+import { evaluateDomainAccess, hasExcludedScheme, hostnameMatchesEntry, normalizeDomainEntries } from '../domainAccess';
 
 describe('domainAccess', () => {
   it('matches parent domains against subdomains', () => {
@@ -36,5 +36,13 @@ describe('domainAccess', () => {
       extensionAllowedDomains: [],
       excludedDomains: [],
     })).toEqual({ allowed: true });
+  });
+
+  it('blocks browser-internal schemes before any domain logic', () => {
+    expect(hasExcludedScheme('chrome://extensions')).toBe(true);
+    expect(evaluateDomainAccess('chrome://extensions', '', null)).toEqual({
+      allowed: false,
+      reason: 'excluded_scheme',
+    });
   });
 });

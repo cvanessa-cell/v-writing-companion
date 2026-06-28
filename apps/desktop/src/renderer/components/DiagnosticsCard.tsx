@@ -46,6 +46,12 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12 }}>Rewrites completed: {diagnostics.counts.rewriteCompleted}</div>
           <div className="muted" style={{ fontSize: 12 }}>Suggestions accepted: {diagnostics.counts.suggestionAccepted}</div>
           <div className="muted" style={{ fontSize: 12 }}>Bridge reconnects: {diagnostics.counts.bridgeConnected}</div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            First success after launch: {diagnostics.funnel.timeToFirstSuccess?.label ?? 'No completed rewrite yet'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Activation rate: {formatRate(diagnostics.funnel.activationRate)}
+          </div>
         </div>
 
         <div className="option-card" style={{ marginTop: 0 }}>
@@ -54,6 +60,15 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12 }}>Replace failures: {diagnostics.counts.replaceFailed}</div>
           <div className="muted" style={{ fontSize: 12 }}>Bridge unavailable: {diagnostics.counts.bridgeUnavailable}</div>
           <div className="muted" style={{ fontSize: 12 }}>Activation blocked: {diagnostics.counts.activationBlocked}</div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Desktop rewrite success: {formatRate(diagnostics.funnel.desktopRewriteRate)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Replace success: {formatRate(diagnostics.funnel.replacementRate)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Extension engagement: {formatRate(diagnostics.funnel.extensionEngagementRate)}
+          </div>
         </div>
 
         <div className="option-card" style={{ marginTop: 0 }}>
@@ -112,6 +127,33 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
       </div>
 
       <div className="option-card" style={{ marginTop: 16 }}>
+        <strong>Domain outcomes</strong>
+        {diagnostics.topDomainOutcomes.length === 0 ? (
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>No domain outcomes recorded yet.</div>
+        ) : (
+          <div style={{ marginTop: 8 }}>
+            {diagnostics.topDomainOutcomes.map((item: {
+              domain: string;
+              successes: number;
+              failures: number;
+              blocked: number;
+              lastEventAt: string;
+            }) => (
+              <div key={item.domain} style={{ borderTop: '1px solid var(--border)', padding: '8px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <strong style={{ fontSize: 13 }}>{item.domain}</strong>
+                  <span className="muted" style={{ fontSize: 12 }}>{item.lastEventAt}</span>
+                </div>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  Successes: {item.successes} | Failures: {item.failures} | Blocked: {item.blocked}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="option-card" style={{ marginTop: 16 }}>
         <strong>Recent events</strong>
         {diagnostics.recentEvents.length === 0 ? (
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>No diagnostics logged yet.</div>
@@ -143,4 +185,9 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
 function formatLatency(value: { count: number; avg: number; p50: number; p95: number } | null): string {
   if (!value) return 'No samples';
   return `p50 ${value.p50} ms | p95 ${value.p95} ms | avg ${value.avg} ms`;
+}
+
+function formatRate(value: { successful: number; failed: number; rate: number | null }): string {
+  if (value.rate == null) return 'No samples';
+  return `${value.rate}% (${value.successful} success / ${value.failed} failed)`;
 }

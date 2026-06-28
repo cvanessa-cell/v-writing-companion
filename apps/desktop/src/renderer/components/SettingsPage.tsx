@@ -179,6 +179,9 @@ export function SettingsPage() {
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
             One domain per line or comma separated. Subdomains inherit from the parent domain.
           </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+            V now waits to reconnect the browser bridge until you focus a supported text field on a visible page.
+          </div>
           <button
             className="btn"
             style={{ marginTop: 8 }}

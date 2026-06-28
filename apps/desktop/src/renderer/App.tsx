@@ -1,6 +1,10 @@
-import { useMemo } from 'react';
+import { Suspense, lazy, useMemo } from 'react';
 import { RewritePanel } from './components/RewritePanel';
-import { SettingsPage } from './components/SettingsPage';
+
+const SettingsPage = lazy(async () => {
+  const mod = await import('./components/SettingsPage');
+  return { default: mod.SettingsPage };
+});
 
 function getView(): 'panel' | 'settings' {
   const params = new URLSearchParams(window.location.search);
@@ -12,7 +16,11 @@ export default function App() {
 
   if (view === 'settings') {
     document.body.classList.add('settings-view');
-    return <SettingsPage />;
+    return (
+      <Suspense fallback={<div className="settings-shell muted">Loading settings...</div>}>
+        <SettingsPage />
+      </Suspense>
+    );
   }
 
   return <RewritePanel />;

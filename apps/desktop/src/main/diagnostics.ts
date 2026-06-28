@@ -28,6 +28,20 @@ interface CountSummary {
   count: number;
 }
 
+interface RateSummary {
+  successful: number;
+  failed: number;
+  rate: number | null;
+}
+
+interface DomainOutcomeSummary {
+  domain: string;
+  successes: number;
+  failures: number;
+  blocked: number;
+  lastEventAt: string;
+}
+
 function sanitizeValue(value: unknown): unknown {
   if (value == null) return value;
   if (typeof value === 'string') {
@@ -79,6 +93,89 @@ function summarizeLatency(rows: DiagnosticRow[], eventName: string) {
     avg: Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2)),
     p50: Number(values[p50Index].toFixed(2)),
     p95: Number(values[p95Index].toFixed(2)),
+  };
+}
+
+function summarizeRate(successful: number, failed: number): RateSummary {
+  const total = successful + failed;
+  return {
+    successful,
+    failed,
+    rate: total > 0 ? Number(((successful / total) * 100).toFixed(1)) : null,
+  };
+}
+
+function summarizeDomainOutcomes(rows: DiagnosticRow[]): DomainOutcomeSummary[] {
+  const domainMap = new Map<string, DomainOutcomeSummary>();
+
+  for (const row of rows) {
+    const domain = getDetailField(row, 'domain');
+    if (!domain) continue;
+
+    const current = domainMap.get(domain) ?? {
+      domain,
+      successes: 0,
+      failures: 0,
+      blocked: 0,
+      lastEventAt: row.created_at,
+    };
+
+    if (
+      row.event_name === 'extension_rewrite_accepted' ||
+      row.event_name === 'suggestion_accepted' ||
+      row.event_name === 'extension_rewrite_review_shown' ||
+      row.event_name === 'suggestion_shown'
+    ) {
+      current.successes += 1;
+    }
+
+    if (
+      row.event_name === 'bridge_unavailable' ||
+      row.event_name === 'extension_rewrite_response' ||
+      row.event_name === 'extension_suggest_response'
+    ) {
+      if (row.status === 'error') current.failures += 1;
+    }
+
+    if (row.event_name === 'extension_activation_blocked') {
+      current.blocked += 1;
+    }
+
+    if (row.created_at > current.lastEventAt) current.lastEventAt = row.created_at;
+    domainMap.set(domain, current);
+  }
+
+  return [...domainMap.values()]
+    .filter((entry) => entry.successes > 0 || entry.failures > 0 || entry.blocked > 0)
+    .sort((a, b) =>
+      b.failures - a.failures ||
+      b.blocked - a.blocked ||
+      b.successes - a.successes ||
+      a.domain.localeCompare(b.domain),
+    )
+    .slice(0, 5);
+}
+
+function summarizeTimeToFirstSuccess(rows: DiagnosticRow[]): { milliseconds: number; label: string } | null {
+  const ordered = [...rows].reverse();
+  const firstLaunch = ordered.find((row) => row.event_name === 'app_launched');
+  const firstSuccess = ordered.find((row) =>
+    ['rewrite_completed', 'extension_rewrite_accepted', 'suggestion_accepted'].includes(row.event_name),
+  );
+
+  if (!firstLaunch || !firstSuccess) return null;
+
+  const launchAt = Date.parse(firstLaunch.created_at);
+  const successAt = Date.parse(firstSuccess.created_at);
+  if (Number.isNaN(launchAt) || Number.isNaN(successAt) || successAt < launchAt) return null;
+
+  const milliseconds = successAt - launchAt;
+  const totalSeconds = Math.round(milliseconds / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return {
+    milliseconds,
+    label: minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`,
   };
 }
 
@@ -158,6 +255,19 @@ export function getDiagnosticsSummary() {
       .filter((value): value is string => Boolean(value)),
   );
 
+  const desktopRewriteRate = summarizeRate(counts.rewrite_completed ?? 0, counts.rewrite_failed ?? 0);
+  const replacementRate = summarizeRate(counts.replace_succeeded ?? 0, counts.replace_failed ?? 0);
+  const extensionEngagementRate = summarizeRate(
+    (counts.extension_rewrite_accepted ?? 0) + (counts.suggestion_accepted ?? 0),
+    (counts.bridge_unavailable ?? 0) + (counts.extension_activation_blocked ?? 0),
+  );
+  const activationRate = summarizeRate(
+    counts.rewrite_completed ?? 0,
+    Math.max((counts.app_launched ?? 0) - (counts.rewrite_completed ?? 0), 0),
+  );
+  const timeToFirstSuccess = summarizeTimeToFirstSuccess(rows);
+  const topDomainOutcomes = summarizeDomainOutcomes(rows);
+
   return {
     eventCountLast7Days: rows.length,
     lastEventAt: rows[0]?.created_at ?? null,
@@ -179,11 +289,20 @@ export function getDiagnosticsSummary() {
       rewriteFailed: counts.rewrite_failed ?? 0,
       replaceSucceeded: counts.replace_succeeded ?? 0,
       replaceFailed: counts.replace_failed ?? 0,
+      extensionRewriteAccepted: counts.extension_rewrite_accepted ?? 0,
+      extensionRewriteDismissed: counts.extension_rewrite_dismissed ?? 0,
       suggestionShown: counts.suggestion_shown ?? 0,
       suggestionAccepted: counts.suggestion_accepted ?? 0,
       bridgeUnavailable: counts.bridge_unavailable ?? 0,
       bridgeConnected: counts.extension_bridge_connected ?? 0,
       activationBlocked: counts.extension_activation_blocked ?? 0,
+    },
+    funnel: {
+      activationRate,
+      desktopRewriteRate,
+      replacementRate,
+      extensionEngagementRate,
+      timeToFirstSuccess,
     },
     latencyMs: {
       hotkeyToPanel: summarizeLatency(rows, 'hotkey_panel_ready'),
@@ -195,6 +314,7 @@ export function getDiagnosticsSummary() {
     },
     topFailureReasons: failureReasons,
     topProblemDomains: domainHotspots,
+    topDomainOutcomes,
     recentEvents: getDiagnosticEvents(12),
   };
 }

@@ -47,6 +47,7 @@ let suggestInFlight = false;
 let settingsPollTimer: number | null = null;
 let bridgeConnectionState: 'unknown' | 'connected' | 'unavailable' = 'unknown';
 let lastAccessReason: string | null = null;
+let pageHasSupportedField = false;
 
 const typingMonitor = new TypingMonitor({
   pauseMs: 1200,
@@ -99,13 +100,17 @@ function stopSettingsPolling(): void {
 }
 
 function startSettingsPolling(): void {
-  if (document.visibilityState !== 'visible' || settingsPollTimer !== null) return;
+  if (!pageHasSupportedField || document.visibilityState !== 'visible' || settingsPollTimer !== null) return;
   settingsPollTimer = window.setInterval(() => {
     void refreshSettings();
   }, 15000);
 }
 
 function syncSettingsPolling(): void {
+  if (!pageHasSupportedField) {
+    stopSettingsPolling();
+    return;
+  }
   if (document.visibilityState === 'visible') {
     void refreshSettings();
     startSettingsPolling();
@@ -114,7 +119,16 @@ function syncSettingsPolling(): void {
   stopSettingsPolling();
 }
 
-syncSettingsPolling();
+function markSupportedFieldSeen(): void {
+  if (pageHasSupportedField) return;
+  pageHasSupportedField = true;
+  syncSettingsPolling();
+}
+
+const initiallyFocusedField = getFocusedTextField();
+if (initiallyFocusedField) {
+  markSupportedFieldSeen();
+}
 
 function getAccessDecision() {
   return evaluateDomainAccess(location.href, location.hostname, bridgeSettings ?? null);
@@ -346,16 +360,18 @@ function showButtonFor(field: HTMLElement) {
 }
 
 document.addEventListener('focusin', (event) => {
-  syncSettingsPolling();
   const target = event.target;
   if (!(target instanceof Element)) return;
-  if (isTextField(target)) showButtonFor(target);
+  if (!isTextField(target)) return;
+  markSupportedFieldSeen();
+  showButtonFor(target);
 });
 
 document.addEventListener('input', (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
   if (!isTextField(target)) return;
+  markSupportedFieldSeen();
   showButtonFor(target);
   const { fullFieldText } = getFieldText(target);
   typingMonitor.handleInput(target, fullFieldText);
