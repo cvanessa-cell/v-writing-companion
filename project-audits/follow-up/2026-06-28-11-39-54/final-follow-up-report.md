@@ -151,7 +151,7 @@ This run implemented the highest-confidence follow-up work that could ship safel
 ## 22. Git status
 
 - Pre-change commit SHA: `de6ca4dc797e61f770ac4f5e605c8e417c6ccaf6`
-- Post-change commit SHA: `TBD_AFTER_COMMIT`
+- Post-change commit SHA: `aae8b212f725ff71a72e18964c74c12d81a6d1b8`
 - Branch used: `main`
 - Checkpoint tag: `pre-follow-up-2026-06-28-11-39-54`
 - Remote target: `origin` -> `https://github.com/cvanessa-cell/v-writing-companion.git`
