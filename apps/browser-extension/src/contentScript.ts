@@ -48,6 +48,7 @@ let settingsPollTimer: number | null = null;
 let bridgeConnectionState: 'unknown' | 'connected' | 'unavailable' = 'unknown';
 let lastAccessReason: string | null = null;
 let pageHasSupportedField = false;
+let runtimeActivated = false;
 
 const typingMonitor = new TypingMonitor({
   pauseMs: 1200,
@@ -122,6 +123,16 @@ function syncSettingsPolling(): void {
 function markSupportedFieldSeen(): void {
   if (pageHasSupportedField) return;
   pageHasSupportedField = true;
+  void sendDiagnosticEvent({
+    eventName: 'supported_field_seen',
+    source: 'extension',
+    status: 'info',
+    stage: 'activation',
+    detail: {
+      domain: location.hostname,
+      frameType: window.top === window ? 'top' : 'child',
+    },
+  });
   syncSettingsPolling();
 }
 
@@ -341,6 +352,20 @@ function showButtonFor(field: HTMLElement) {
   activeField = field;
   typingMonitor.handleFocus(field);
 
+  if (!runtimeActivated) {
+    runtimeActivated = true;
+    void sendDiagnosticEvent({
+      eventName: 'full_runtime_activated',
+      source: 'extension',
+      status: 'info',
+      stage: 'activation',
+      detail: {
+        domain: location.hostname,
+        frameType: window.top === window ? 'top' : 'child',
+      },
+    });
+  }
+
   if (!floatingBtn) {
     floatingBtn = createButton();
     document.body.appendChild(floatingBtn);
@@ -402,6 +427,18 @@ document.addEventListener('visibilitychange', () => {
     typingMonitor.handleBlur();
     hideSuggestionOverlay();
   }
+});
+
+void sendDiagnosticEvent({
+  eventName: 'content_script_bootstrapped',
+  source: 'extension',
+  status: 'info',
+  stage: 'activation',
+  detail: {
+    domain: location.hostname,
+    frameType: window.top === window ? 'top' : 'child',
+    visibility: document.visibilityState,
+  },
 });
 
 export {};

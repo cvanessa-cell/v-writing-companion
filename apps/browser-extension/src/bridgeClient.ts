@@ -72,7 +72,13 @@ export async function sendDiagnosticEvent(payload: DiagnosticsEventPayload) {
     await fetch(`${base}/event`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        detail: {
+          ...payload.detail,
+          extensionVersion: chrome.runtime.getManifest().version,
+        },
+      }),
     });
   } catch {
     // Best-effort local diagnostics only.

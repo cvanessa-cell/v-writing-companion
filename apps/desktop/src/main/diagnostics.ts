@@ -1,4 +1,5 @@
 import { getDatabase } from './database';
+import { getReleaseMetadata } from './releaseMetadata';
 
 export type DiagnosticSource = 'desktop' | 'extension' | 'renderer';
 export type DiagnosticStatus = 'info' | 'success' | 'error';
@@ -21,6 +22,15 @@ interface DiagnosticRow {
   latency_ms: number | null;
   detail_json: string | null;
   created_at: string;
+}
+
+interface VersionHealthSummary {
+  eventCount: number;
+  lastEventAt: string | null;
+  successfulRewrites: number;
+  failedEvents: number;
+  bridgeReconnects: number;
+  activationBlocks: number;
 }
 
 interface CountSummary {
@@ -72,10 +82,47 @@ function parseDetail(raw: string | null): Record<string, unknown> | null {
   }
 }
 
+function getCurrentReleaseMetadata(detail: Record<string, unknown> | null) {
+  return {
+    appVersion: typeof detail?.appVersion === 'string' ? detail.appVersion : null,
+    extensionVersion: typeof detail?.extensionVersion === 'string' ? detail.extensionVersion : null,
+    releaseChannel: typeof detail?.releaseChannel === 'string' ? detail.releaseChannel : null,
+  };
+}
+
+function rowMatchesCurrentRelease(
+  row: DiagnosticRow,
+  release: ReturnType<typeof getReleaseMetadata>,
+): boolean {
+  const detail = parseDetail(row.detail_json);
+  const meta = getCurrentReleaseMetadata(detail);
+  return (
+    meta.appVersion === release.appVersion ||
+    (Boolean(release.extensionVersion) && meta.extensionVersion === release.extensionVersion)
+  );
+}
+
 function getDetailField(row: DiagnosticRow, key: string): string | null {
   const detail = parseDetail(row.detail_json);
   const value = detail?.[key];
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function summarizeVersionHealth(rows: DiagnosticRow[]): VersionHealthSummary {
+  const counts: Record<string, number> = {};
+  for (const row of rows) counts[row.event_name] = (counts[row.event_name] ?? 0) + 1;
+
+  return {
+    eventCount: rows.length,
+    lastEventAt: rows[0]?.created_at ?? null,
+    successfulRewrites:
+      (counts.rewrite_completed ?? 0) +
+      (counts.extension_rewrite_accepted ?? 0) +
+      (counts.suggestion_accepted ?? 0),
+    failedEvents: rows.filter((row) => row.status === 'error').length,
+    bridgeReconnects: counts.extension_bridge_connected ?? 0,
+    activationBlocks: counts.extension_activation_blocked ?? 0,
+  };
 }
 
 function summarizeLatency(rows: DiagnosticRow[], eventName: string) {
@@ -180,7 +227,15 @@ function summarizeTimeToFirstSuccess(rows: DiagnosticRow[]): { milliseconds: num
 }
 
 export function logDiagnosticEvent(input: DiagnosticEventInput): void {
-  const detail = input.detail ? sanitizeValue(input.detail) : null;
+  const release = getReleaseMetadata();
+  const detail = sanitizeValue({
+    ...(input.detail ?? {}),
+    appVersion: release.appVersion,
+    extensionVersion: input.source === 'extension'
+      ? (input.detail?.extensionVersion as string | undefined) ?? release.extensionVersion
+      : release.extensionVersion,
+    releaseChannel: release.releaseChannel,
+  }) as Record<string, unknown>;
   getDatabase()
     .prepare(
       `INSERT INTO diagnostic_events (event_name, source, status, stage, latency_ms, detail_json)
@@ -192,7 +247,7 @@ export function logDiagnosticEvent(input: DiagnosticEventInput): void {
       input.status,
       input.stage ?? null,
       input.latencyMs ?? null,
-      detail ? JSON.stringify(detail) : null,
+      JSON.stringify(detail),
     );
 }
 
@@ -219,6 +274,7 @@ export function getDiagnosticEvents(limit = 50) {
 }
 
 export function getDiagnosticsSummary() {
+  const release = getReleaseMetadata();
   const rows = getDatabase()
     .prepare(
       `SELECT id, event_name, source, status, stage, latency_ms, detail_json, created_at
@@ -228,6 +284,8 @@ export function getDiagnosticsSummary() {
        LIMIT 500`,
     )
     .all() as DiagnosticRow[];
+
+  const currentVersionRows = rows.filter((row) => rowMatchesCurrentRelease(row, release));
 
   const counts: Record<string, number> = {};
   for (const row of rows) counts[row.event_name] = (counts[row.event_name] ?? 0) + 1;
@@ -296,13 +354,26 @@ export function getDiagnosticsSummary() {
       bridgeUnavailable: counts.bridge_unavailable ?? 0,
       bridgeConnected: counts.extension_bridge_connected ?? 0,
       activationBlocked: counts.extension_activation_blocked ?? 0,
+      contentScriptBootstrapped: counts.content_script_bootstrapped ?? 0,
+      supportedFieldSeen: counts.supported_field_seen ?? 0,
+      fullRuntimeActivated: counts.full_runtime_activated ?? 0,
     },
+    release,
+    currentVersion: summarizeVersionHealth(currentVersionRows),
     funnel: {
       activationRate,
       desktopRewriteRate,
       replacementRate,
       extensionEngagementRate,
       timeToFirstSuccess,
+      extensionFieldActivationRate: summarizeRate(
+        counts.supported_field_seen ?? 0,
+        Math.max((counts.content_script_bootstrapped ?? 0) - (counts.supported_field_seen ?? 0), 0),
+      ),
+      extensionRuntimeActivationRate: summarizeRate(
+        counts.full_runtime_activated ?? 0,
+        Math.max((counts.supported_field_seen ?? 0) - (counts.full_runtime_activated ?? 0), 0),
+      ),
     },
     latencyMs: {
       hotkeyToPanel: summarizeLatency(rows, 'hotkey_panel_ready'),

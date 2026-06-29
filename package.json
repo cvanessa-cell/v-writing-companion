@@ -11,6 +11,7 @@
     "dev": "npm run dev -w @v/desktop",
     "build": "npm run build -w @v/desktop && npm run build -w @v/browser-extension",
     "test": "npm run test -w @v/desktop && npm run test -w @v/shared && npm run test -w @v/browser-extension",
+    "test:full": "npm run test && npm run test:dom -w @v/browser-extension",
     "lint": "npm run lint -w @v/shared && npm run lint -w @v/desktop && npm run lint -w @v/browser-extension"
   },
   "engines": {

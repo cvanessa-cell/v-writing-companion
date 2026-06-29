@@ -16,7 +16,7 @@ npm run build -w @v/browser-extension
 ## Verify connection
 
 1. Start the V desktop app
-2. Click the extension icon — should show "Desktop app connected on localhost:47821"
+2. Click the extension icon. The popup now shows connection state plus a 3-step first-value path.
 3. Focus a normal text field on a webpage
 4. Click the floating **V** button near the field
 5. Approve replacement in the confirm dialog
@@ -30,13 +30,15 @@ npm run build -w @v/browser-extension
 
 ## Bridge API
 
-- `GET /health` — connection check
-- `POST /rewrite-request` — send field text + page context, receive rewrite options
-
-
-## Phase 4 bridge endpoints
-
-- GET /settings — paused, realtime, pause ms, min chars, speech cleanup mode
-- POST /suggest-request — pause-triggered proactive suggestion (1 option + overlay)
+- `GET /health` - connection check
+- `POST /rewrite-request` - send field text plus page context and receive rewrite options
+- `GET /settings` - paused state, realtime settings, and activation scope
+- `POST /suggest-request` - pause-triggered proactive suggestion requests
+- `POST /event` - privacy-safe local activation and rewrite diagnostics
 
 Enable **Real-time suggestions** in V Settings, reload the extension, then type in a normal text field and pause.
+
+## Validation
+
+- `npm run test -w @v/browser-extension` runs the fast logic suite used by the root workspace test.
+- `npm run test:dom -w @v/browser-extension` runs the overlay DOM suite separately when you need popup or overlay coverage.

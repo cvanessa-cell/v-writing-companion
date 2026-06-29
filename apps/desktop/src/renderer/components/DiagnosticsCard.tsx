@@ -5,6 +5,13 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
   const failureSummary = diagnostics.lastFailure
     ? `${diagnostics.lastFailure.eventName} (${diagnostics.lastFailure.source})`
     : 'No recent failures';
+  const releaseLabel = [
+    `Desktop ${diagnostics.release.appVersion}`,
+    diagnostics.release.extensionVersion ? `Extension ${diagnostics.release.extensionVersion}` : null,
+    diagnostics.release.releaseChannel,
+  ]
+    .filter(Boolean)
+    .join(' | ');
 
   return (
     <div className="card" style={{ padding: 16, marginTop: 16 }}>
@@ -29,6 +36,7 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
             Events last 7 days: {diagnostics.eventCountLast7Days}
           </div>
+          <div className="muted" style={{ fontSize: 12 }}>Current release: {releaseLabel}</div>
           <div className="muted" style={{ fontSize: 12 }}>Last event: {diagnostics.lastEventAt ?? 'None yet'}</div>
           <div className="muted" style={{ fontSize: 12 }}>
             Last successful rewrite: {diagnostics.lastSuccessfulRewriteAt ?? 'None yet'}
@@ -51,6 +59,12 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
             Activation rate: {formatRate(diagnostics.funnel.activationRate)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Field activation rate: {formatRate(diagnostics.funnel.extensionFieldActivationRate)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Runtime activation rate: {formatRate(diagnostics.funnel.extensionRuntimeActivationRate)}
           </div>
         </div>
 
@@ -90,6 +104,46 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
             Bridge suggest: {formatLatency(diagnostics.latencyMs.bridgeSuggest)}
+          </div>
+        </div>
+      </div>
+
+      <div className="diagnostics-grid" style={{ marginTop: 16 }}>
+        <div className="option-card" style={{ marginTop: 0 }}>
+          <strong>Current release health</strong>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Release-tagged events: {diagnostics.currentVersion.eventCount}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Successful rewrites: {diagnostics.currentVersion.successfulRewrites}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Failed events: {diagnostics.currentVersion.failedEvents}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Bridge reconnects: {diagnostics.currentVersion.bridgeReconnects}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Activation blocks: {diagnostics.currentVersion.activationBlocks}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Last tagged event: {diagnostics.currentVersion.lastEventAt ?? 'No tagged events yet'}
+          </div>
+        </div>
+
+        <div className="option-card" style={{ marginTop: 0 }}>
+          <strong>Extension activation telemetry</strong>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Content scripts bootstrapped: {diagnostics.counts.contentScriptBootstrapped}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Supported fields seen: {diagnostics.counts.supportedFieldSeen}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Full runtime activations: {diagnostics.counts.fullRuntimeActivated}
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Use this to compare broad injections against actual writing-field usage after each release.
           </div>
         </div>
       </div>

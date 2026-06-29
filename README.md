@@ -33,4 +33,11 @@ copy .env.example .env
 npm run dev
 ```
 
-After launch, connect your provider, open the browser extension if you use it, then run one desktop rewrite and one browser-field rewrite. The settings screen will start capturing local diagnostics so you can verify that bridge, capture, and rewrite stages are working.
+After launch, connect your provider, run one desktop rewrite with `Ctrl+Shift+Space`, then load the browser extension and accept one in-field rewrite. The settings screen and extension popup now both show the first-success path, while local diagnostics capture bridge, activation, and rewrite proof for each release.
+
+## Validation scripts
+
+- `npm run test`: default fast validation across desktop, shared, and extension logic tests
+- `npm run test:full`: includes the slower browser overlay DOM suite
+- `npm run lint`
+- `npm run build`
