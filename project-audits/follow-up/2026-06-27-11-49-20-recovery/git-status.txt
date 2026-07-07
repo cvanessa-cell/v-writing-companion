@@ -1,0 +1,6 @@
+## main...origin/main
+?? .assistant-runs/
+?? docs/performance-audit-2026-06-25.md
+?? docs/performance-audit-2026-06-26.md
+?? project-audits/follow-up/2026-06-25-11-58-34-recovery/
+?? project-audits/follow-up/2026-06-26-09-17-45-recovery/

@@ -1,0 +1,6 @@
+## main...origin/main
+ M apps/desktop/src/main/index.ts
+?? .assistant-runs/
+?? docs/performance-audit-2026-06-25.md
+?? docs/performance-audit-2026-06-26.md
+?? project-audits/follow-up/2026-06-25-11-58-34-recovery/
