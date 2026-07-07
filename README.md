@@ -4,6 +4,8 @@ V helps you rewrite text inside Windows apps and browser fields without forcing 
 
 See [docs/SETUP.md](docs/SETUP.md), [docs/EXTENSION_SETUP.md](docs/EXTENSION_SETUP.md), and [docs/PRIVACY.md](docs/PRIVACY.md) for setup and privacy details.
 
+For repo commands and operating guidance, see [TOOLS.md](TOOLS.md). For the July 7 source comparison against IV by Agent V, see [docs/source-comparison-2026-07-07.md](docs/source-comparison-2026-07-07.md).
+
 ## Who it helps
 
 - People who write across email, docs, forms, and browser text fields all day
