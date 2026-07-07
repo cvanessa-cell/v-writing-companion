@@ -19,7 +19,7 @@ npm run build -w @v/browser-extension
 2. Click the extension icon. The popup now shows connection state plus a 3-step first-value path.
 3. Focus a normal text field on a webpage
 4. Click the floating **V** button near the field
-5. Approve replacement in the confirm dialog
+5. Review the inline overlay and click **Accept** to apply the rewrite
 
 ## Security
 
@@ -41,4 +41,4 @@ Enable **Real-time suggestions** in V Settings, reload the extension, then type 
 ## Validation
 
 - `npm run test -w @v/browser-extension` runs the fast logic suite used by the root workspace test.
-- `npm run test:dom -w @v/browser-extension` runs the overlay DOM suite separately when you need popup or overlay coverage.
+- `npm run test:dom -w @v/browser-extension` runs the DOM-dependent overlay and field-detector coverage separately.

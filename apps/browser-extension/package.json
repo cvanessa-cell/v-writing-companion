@@ -6,8 +6,8 @@
     "build": "node scripts/build.mjs",
     "lint": "tsc --noEmit -p tsconfig.json",
     "test": "npm run test:logic",
-    "test:logic": "vitest run --exclude src/tests/suggestionOverlay.test.ts",
-    "test:dom": "vitest run src/tests/suggestionOverlay.test.ts"
+    "test:logic": "vitest run --exclude src/tests/suggestionOverlay.test.ts --exclude src/tests/fieldDetector.test.ts",
+    "test:dom": "vitest run src/tests/suggestionOverlay.test.ts src/tests/fieldDetector.test.ts"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.296",
