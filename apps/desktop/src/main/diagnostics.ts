@@ -1,5 +1,16 @@
 import { getDatabase } from './database';
 import { getReleaseMetadata } from './releaseMetadata';
+import {
+  buildReleaseComparison,
+  getReleaseIdentity,
+  rowMatchesRelease,
+  summarizeLatency,
+  summarizeRate,
+  summarizeReleaseHealth,
+  summarizeTimeToFirstSuccess,
+  type CountSummary,
+  type DetailedDiagnosticRow,
+} from './diagnosticSummary';
 
 export type DiagnosticSource = 'desktop' | 'extension' | 'renderer';
 export type DiagnosticStatus = 'info' | 'success' | 'error';
@@ -22,26 +33,6 @@ interface DiagnosticRow {
   latency_ms: number | null;
   detail_json: string | null;
   created_at: string;
-}
-
-interface VersionHealthSummary {
-  eventCount: number;
-  lastEventAt: string | null;
-  successfulRewrites: number;
-  failedEvents: number;
-  bridgeReconnects: number;
-  activationBlocks: number;
-}
-
-interface CountSummary {
-  label: string;
-  count: number;
-}
-
-interface RateSummary {
-  successful: number;
-  failed: number;
-  rate: number | null;
 }
 
 interface DomainOutcomeSummary {
@@ -82,77 +73,19 @@ function parseDetail(raw: string | null): Record<string, unknown> | null {
   }
 }
 
-function getCurrentReleaseMetadata(detail: Record<string, unknown> | null) {
-  return {
-    appVersion: typeof detail?.appVersion === 'string' ? detail.appVersion : null,
-    extensionVersion: typeof detail?.extensionVersion === 'string' ? detail.extensionVersion : null,
-    releaseChannel: typeof detail?.releaseChannel === 'string' ? detail.releaseChannel : null,
-  };
-}
-
 function rowMatchesCurrentRelease(
-  row: DiagnosticRow,
+  row: DetailedDiagnosticRow,
   release: ReturnType<typeof getReleaseMetadata>,
 ): boolean {
-  const detail = parseDetail(row.detail_json);
-  const meta = getCurrentReleaseMetadata(detail);
-  return (
-    meta.appVersion === release.appVersion ||
-    (Boolean(release.extensionVersion) && meta.extensionVersion === release.extensionVersion)
-  );
+  return rowMatchesRelease(row, release);
 }
 
-function getDetailField(row: DiagnosticRow, key: string): string | null {
-  const detail = parseDetail(row.detail_json);
-  const value = detail?.[key];
+function getDetailField(row: DetailedDiagnosticRow, key: string): string | null {
+  const value = row.detail?.[key];
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function summarizeVersionHealth(rows: DiagnosticRow[]): VersionHealthSummary {
-  const counts: Record<string, number> = {};
-  for (const row of rows) counts[row.event_name] = (counts[row.event_name] ?? 0) + 1;
-
-  return {
-    eventCount: rows.length,
-    lastEventAt: rows[0]?.created_at ?? null,
-    successfulRewrites:
-      (counts.rewrite_completed ?? 0) +
-      (counts.extension_rewrite_accepted ?? 0) +
-      (counts.suggestion_accepted ?? 0),
-    failedEvents: rows.filter((row) => row.status === 'error').length,
-    bridgeReconnects: counts.extension_bridge_connected ?? 0,
-    activationBlocks: counts.extension_activation_blocked ?? 0,
-  };
-}
-
-function summarizeLatency(rows: DiagnosticRow[], eventName: string) {
-  const values = rows
-    .filter((row) => row.event_name === eventName && typeof row.latency_ms === 'number')
-    .map((row) => Number(row.latency_ms))
-    .sort((a, b) => a - b);
-  if (values.length === 0) return null;
-
-  const p50Index = Math.floor((values.length - 1) * 0.5);
-  const p95Index = Math.floor((values.length - 1) * 0.95);
-
-  return {
-    count: values.length,
-    avg: Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2)),
-    p50: Number(values[p50Index].toFixed(2)),
-    p95: Number(values[p95Index].toFixed(2)),
-  };
-}
-
-function summarizeRate(successful: number, failed: number): RateSummary {
-  const total = successful + failed;
-  return {
-    successful,
-    failed,
-    rate: total > 0 ? Number(((successful / total) * 100).toFixed(1)) : null,
-  };
-}
-
-function summarizeDomainOutcomes(rows: DiagnosticRow[]): DomainOutcomeSummary[] {
+function summarizeDomainOutcomes(rows: DetailedDiagnosticRow[]): DomainOutcomeSummary[] {
   const domainMap = new Map<string, DomainOutcomeSummary>();
 
   for (const row of rows) {
@@ -164,31 +97,31 @@ function summarizeDomainOutcomes(rows: DiagnosticRow[]): DomainOutcomeSummary[] 
       successes: 0,
       failures: 0,
       blocked: 0,
-      lastEventAt: row.created_at,
+      lastEventAt: row.createdAt,
     };
 
     if (
-      row.event_name === 'extension_rewrite_accepted' ||
-      row.event_name === 'suggestion_accepted' ||
-      row.event_name === 'extension_rewrite_review_shown' ||
-      row.event_name === 'suggestion_shown'
+      row.eventName === 'extension_rewrite_accepted' ||
+      row.eventName === 'suggestion_accepted' ||
+      row.eventName === 'extension_rewrite_review_shown' ||
+      row.eventName === 'suggestion_shown'
     ) {
       current.successes += 1;
     }
 
     if (
-      row.event_name === 'bridge_unavailable' ||
-      row.event_name === 'extension_rewrite_response' ||
-      row.event_name === 'extension_suggest_response'
+      row.eventName === 'bridge_unavailable' ||
+      row.eventName === 'extension_rewrite_response' ||
+      row.eventName === 'extension_suggest_response'
     ) {
       if (row.status === 'error') current.failures += 1;
     }
 
-    if (row.event_name === 'extension_activation_blocked') {
+    if (row.eventName === 'extension_activation_blocked') {
       current.blocked += 1;
     }
 
-    if (row.created_at > current.lastEventAt) current.lastEventAt = row.created_at;
+    if (row.createdAt > current.lastEventAt) current.lastEventAt = row.createdAt;
     domainMap.set(domain, current);
   }
 
@@ -201,29 +134,6 @@ function summarizeDomainOutcomes(rows: DiagnosticRow[]): DomainOutcomeSummary[] 
       a.domain.localeCompare(b.domain),
     )
     .slice(0, 5);
-}
-
-function summarizeTimeToFirstSuccess(rows: DiagnosticRow[]): { milliseconds: number; label: string } | null {
-  const ordered = [...rows].reverse();
-  const firstLaunch = ordered.find((row) => row.event_name === 'app_launched');
-  const firstSuccess = ordered.find((row) =>
-    ['rewrite_completed', 'extension_rewrite_accepted', 'suggestion_accepted'].includes(row.event_name),
-  );
-
-  if (!firstLaunch || !firstSuccess) return null;
-
-  const launchAt = Date.parse(firstLaunch.created_at);
-  const successAt = Date.parse(firstSuccess.created_at);
-  if (Number.isNaN(launchAt) || Number.isNaN(successAt) || successAt < launchAt) return null;
-
-  const milliseconds = successAt - launchAt;
-  const totalSeconds = Math.round(milliseconds / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return {
-    milliseconds,
-    label: minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`,
-  };
 }
 
 export function logDiagnosticEvent(input: DiagnosticEventInput): void {
@@ -285,28 +195,43 @@ export function getDiagnosticsSummary() {
     )
     .all() as DiagnosticRow[];
 
-  const currentVersionRows = rows.filter((row) => rowMatchesCurrentRelease(row, release));
+  const parsedRows: DetailedDiagnosticRow[] = rows.map((row) => ({
+    eventName: row.event_name,
+    source: row.source,
+    status: row.status,
+    stage: row.stage,
+    latencyMs: row.latency_ms,
+    detail: parseDetail(row.detail_json),
+    createdAt: row.created_at,
+  }));
+
+  const currentVersionRows = parsedRows.filter((row) => rowMatchesCurrentRelease(row, release));
+  const releaseComparison = buildReleaseComparison(parsedRows, getReleaseIdentity({
+    appVersion: release.appVersion,
+    extensionVersion: release.extensionVersion,
+    releaseChannel: release.releaseChannel,
+  }));
 
   const counts: Record<string, number> = {};
   for (const row of rows) counts[row.event_name] = (counts[row.event_name] ?? 0) + 1;
 
-  const lastFailure = rows.find((row) => row.status === 'error') ?? null;
-  const lastRewriteSuccess = rows.find((row) =>
-    ['rewrite_completed', 'extension_rewrite_accepted', 'suggestion_accepted'].includes(row.event_name),
+  const lastFailure = parsedRows.find((row) => row.status === 'error') ?? null;
+  const lastRewriteSuccess = parsedRows.find((row) =>
+    ['rewrite_completed', 'extension_rewrite_accepted', 'suggestion_accepted'].includes(row.eventName),
   ) ?? null;
-  const lastBridgeConnected = rows.find((row) => row.event_name === 'extension_bridge_connected') ?? null;
+  const lastBridgeConnected = parsedRows.find((row) => row.eventName === 'extension_bridge_connected') ?? null;
 
   const failureReasons = summarizeCounts(
-    rows
+    parsedRows
       .filter((row) => row.status === 'error')
-      .map((row) => getDetailField(row, 'reason') ?? row.event_name),
+      .map((row) => getDetailField(row, 'reason') ?? row.eventName),
   );
 
   const domainHotspots = summarizeCounts(
-    rows
+    parsedRows
       .filter((row) =>
-        row.event_name === 'bridge_unavailable' ||
-        row.event_name === 'extension_activation_blocked' ||
+        row.eventName === 'bridge_unavailable' ||
+        row.eventName === 'extension_activation_blocked' ||
         row.status === 'error',
       )
       .map((row) => getDetailField(row, 'domain'))
@@ -323,21 +248,21 @@ export function getDiagnosticsSummary() {
     counts.rewrite_completed ?? 0,
     Math.max((counts.app_launched ?? 0) - (counts.rewrite_completed ?? 0), 0),
   );
-  const timeToFirstSuccess = summarizeTimeToFirstSuccess(rows);
-  const topDomainOutcomes = summarizeDomainOutcomes(rows);
+  const timeToFirstSuccess = summarizeTimeToFirstSuccess(parsedRows);
+  const topDomainOutcomes = summarizeDomainOutcomes(parsedRows);
 
   return {
     eventCountLast7Days: rows.length,
     lastEventAt: rows[0]?.created_at ?? null,
-    lastSuccessfulRewriteAt: lastRewriteSuccess?.created_at ?? null,
-    lastBridgeConnectedAt: lastBridgeConnected?.created_at ?? null,
+    lastSuccessfulRewriteAt: lastRewriteSuccess?.createdAt ?? null,
+    lastBridgeConnectedAt: lastBridgeConnected?.createdAt ?? null,
     lastFailure: lastFailure
       ? {
-          eventName: lastFailure.event_name,
+          eventName: lastFailure.eventName,
           source: lastFailure.source,
           stage: lastFailure.stage,
-          createdAt: lastFailure.created_at,
-          detail: parseDetail(lastFailure.detail_json),
+          createdAt: lastFailure.createdAt,
+          detail: lastFailure.detail,
         }
       : null,
     counts: {
@@ -359,7 +284,13 @@ export function getDiagnosticsSummary() {
       fullRuntimeActivated: counts.full_runtime_activated ?? 0,
     },
     release,
-    currentVersion: summarizeVersionHealth(currentVersionRows),
+    currentVersion: summarizeReleaseHealth(currentVersionRows, release),
+    previousVersion: releaseComparison.previous,
+    releaseVerdict: releaseComparison.verdict,
+    releaseComparison: {
+      note: releaseComparison.comparisonNote,
+      deltas: releaseComparison.deltas,
+    },
     funnel: {
       activationRate,
       desktopRewriteRate,
@@ -376,12 +307,12 @@ export function getDiagnosticsSummary() {
       ),
     },
     latencyMs: {
-      hotkeyToPanel: summarizeLatency(rows, 'hotkey_panel_ready'),
-      activeWindow: summarizeLatency(rows, 'active_window_resolved'),
-      captureSelected: summarizeLatency(rows, 'capture_selected'),
-      replaceText: summarizeLatency(rows, 'replace_selected_text'),
-      bridgeRewrite: summarizeLatency(rows, 'extension_rewrite_response'),
-      bridgeSuggest: summarizeLatency(rows, 'extension_suggest_response'),
+      hotkeyToPanel: summarizeLatency(parsedRows, 'hotkey_panel_ready'),
+      activeWindow: summarizeLatency(parsedRows, 'active_window_resolved'),
+      captureSelected: summarizeLatency(parsedRows, 'capture_selected'),
+      replaceText: summarizeLatency(parsedRows, 'replace_selected_text'),
+      bridgeRewrite: summarizeLatency(parsedRows, 'extension_rewrite_response'),
+      bridgeSuggest: summarizeLatency(parsedRows, 'extension_suggest_response'),
     },
     topFailureReasons: failureReasons,
     topProblemDomains: domainHotspots,

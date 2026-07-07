@@ -12,6 +12,7 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
   ]
     .filter(Boolean)
     .join(' | ');
+  const verdictTone = getVerdictTone(diagnostics.releaseVerdict.status);
 
   return (
     <div className="card" style={{ padding: 16, marginTop: 16 }}>
@@ -31,6 +32,36 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
       </div>
 
       <div className="diagnostics-grid" style={{ marginTop: 16 }}>
+        <div className="option-card" style={{ marginTop: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <strong>Release verdict</strong>
+            <span
+              className="badge"
+              style={{
+                background: verdictTone.background,
+                color: verdictTone.text,
+                border: `1px solid ${verdictTone.border}`,
+              }}
+            >
+              {diagnostics.releaseVerdict.status.replace('_', ' ')}
+            </span>
+          </div>
+          <div style={{ marginTop: 8, fontSize: 13 }}>{diagnostics.releaseVerdict.title}</div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+            {diagnostics.releaseVerdict.summary}
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            {diagnostics.releaseComparison.note}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            {diagnostics.releaseVerdict.reasons.map((reason: string) => (
+              <div key={reason} className="muted" style={{ fontSize: 12 }}>
+                {reason}
+              </div>
+            ))}
+          </div>
+        </div>
+
         <div className="option-card" style={{ marginTop: 0 }}>
           <strong>Recent health</strong>
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
@@ -129,6 +160,43 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12 }}>
             Last tagged event: {diagnostics.currentVersion.lastEventAt ?? 'No tagged events yet'}
           </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Current release activation: {formatRate(diagnostics.currentVersion.activationRate)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Current field activation: {formatRate(diagnostics.currentVersion.extensionFieldActivationRate)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Current hotkey p50: {formatReleaseLatency(diagnostics.currentVersion.hotkeyToPanel)}
+          </div>
+        </div>
+
+        <div className="option-card" style={{ marginTop: 0 }}>
+          <strong>Release comparison</strong>
+          {diagnostics.previousVersion ? (
+            <div style={{ marginTop: 8 }}>
+              <div className="muted" style={{ fontSize: 12 }}>
+                Previous release: {diagnostics.previousVersion.releaseLabel}
+              </div>
+              {diagnostics.releaseComparison.deltas.length === 0 ? (
+                <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  No directly comparable metrics yet.
+                </div>
+              ) : (
+                <div style={{ marginTop: 8 }}>
+                  {diagnostics.releaseComparison.deltas.map((delta: { label: string; current: string; previous: string }) => (
+                    <div key={delta.label} className="muted" style={{ fontSize: 12 }}>
+                      {delta.label}: {delta.current} now vs {delta.previous} before
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              No earlier version-tagged diagnostics are stored locally yet.
+            </div>
+          )}
         </div>
 
         <div className="option-card" style={{ marginTop: 0 }}>
@@ -244,4 +312,19 @@ function formatLatency(value: { count: number; avg: number; p50: number; p95: nu
 function formatRate(value: { successful: number; failed: number; rate: number | null }): string {
   if (value.rate == null) return 'No samples';
   return `${value.rate}% (${value.successful} success / ${value.failed} failed)`;
+}
+
+function formatReleaseLatency(value: { p50: number } | null): string {
+  if (!value) return 'No samples';
+  return `${value.p50} ms`;
+}
+
+function getVerdictTone(status: 'healthy' | 'watch' | 'needs_attention') {
+  if (status === 'healthy') {
+    return { background: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.35)', text: '#86efac' };
+  }
+  if (status === 'watch') {
+    return { background: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.35)', text: '#fcd34d' };
+  }
+  return { background: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.35)', text: '#fca5a5' };
 }

@@ -65,6 +65,9 @@ export function SettingsPage() {
             <div className="muted" style={{ fontSize: 12 }}>
               Browser rewrite proof: {extensionReady ? 'captured in diagnostics' : 'not completed yet'}
             </div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              Current release verdict: {diagnostics.releaseVerdict.title}
+            </div>
             <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
               Bridge health: {bridgeUrl}
             </div>
