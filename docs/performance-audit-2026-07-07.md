@@ -5,7 +5,7 @@
 - Active project folder: [C:\Users\cvane\V](C:\Users\cvane\V)
 - Git state at audit start: `main...origin/main`
 - Current commit SHA at audit start: `51d3bc628525959daae11dd6d8cc99f9951aef66`
-- Final pushed commit SHA for this run: `21792669c1fc2490070e8285304b80c0b2b120c2`
+- Final pushed state for this run: `origin/main` at the report-publishing head after this audit's metadata commits
 - Remote: `origin` -> `https://github.com/cvanessa-cell/v-writing-companion.git`
 - Rollback checkpoint for source edits: tag `pre-follow-up-2026-07-07-11-58-30`
 - Recovery folder: [C:\Users\cvane\V\project-audits\follow-up\2026-07-07-11-58-30-recovery](C:\Users\cvane\V\project-audits\follow-up\2026-07-07-11-58-30-recovery)
