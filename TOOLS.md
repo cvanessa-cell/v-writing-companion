@@ -23,6 +23,7 @@ The current product source is this repo:
 | Run the fast validation suite | `npm run test` |
 | Run the full validation suite | `npm run test:full` |
 | Run lint | `npm run lint` |
+| Audit env coverage and secret hygiene | `npm run env:audit` |
 | Build only the browser extension | `npm run build -w @v/browser-extension` |
 | Test only the browser extension | `npm run test -w @v/browser-extension` |
 | Run browser overlay DOM tests | `npm run test:dom -w @v/browser-extension` |
@@ -45,6 +46,7 @@ Run from `C:\Users\cvane\V`.
 
 ```powershell
 npm run lint
+npm run env:audit
 npm run test
 npm run build
 ```
@@ -69,6 +71,17 @@ The IV repo adds value to this repo as an operations reference:
 - Treat project-intelligence docs as useful context, but do not overwrite product-specific code with unrelated architecture.
 - Prefer vertical validation after changes: lint, tests, build, then a manual smoke path when UI behavior is affected.
 - Preserve user-authored docs and local audit artifacts when importing guidance from a sibling repo.
+
+## Imported Lessons From Assistant
+
+The Assistant project at `C:\Users\cvane\OneDrive\Desktop\Assistant\production-optimization-assistant` adds value as an operations and connector reference:
+
+- Keep env and connector checks safe by never printing raw secret values.
+- Compare source references against `.env.example` so setup docs do not drift.
+- Treat provider verification as read-only health checks unless a user explicitly asks for a write.
+- Keep project-memory and project-understanding exports separate from product runtime code.
+
+V now includes `npm run env:audit` for the first two checks.
 
 ## Do Not Directly Import Without Review
 
