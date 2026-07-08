@@ -17,6 +17,12 @@
       "all_frames": true
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["contentRuntime.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "action": {
     "default_title": "V",
     "default_popup": "popup.html"

@@ -1,0 +1,439 @@
+import {
+  getFieldMetadata,
+  getFieldText,
+  getFocusedTextField,
+  isSensitiveField,
+  isTextField,
+  replaceFieldText,
+} from './fieldDetector';
+import { getBridgeSettings, sendDiagnosticEvent, sendRewriteRequest, sendSuggestRequest } from './bridgeClient';
+import { evaluateDomainAccess } from './domainAccess';
+import { TypingMonitor } from './typingMonitor';
+import { hideSuggestionOverlay, positionOverlay, showStatusOverlay, showSuggestionOverlay } from './suggestionOverlay';
+import { detectSpeechDictationPatterns } from '@v/shared';
+
+export interface RuntimeActivationOptions {
+  initialField?: HTMLElement | null;
+  trigger: 'initial-focus' | 'focusin' | 'input';
+  bootstrapStartedAt: number;
+  frameType: 'top' | 'child';
+}
+
+function buildPayload(field: HTMLElement) {
+  const meta = getFieldMetadata(field);
+  const { fullFieldText, selectedText, selectionStart, selectionEnd } = getFieldText(field);
+  return {
+    selectedText,
+    fullFieldText,
+    url: location.href,
+    domain: location.hostname,
+    pageTitle: document.title,
+    fieldMetadata: meta,
+    selectionStart,
+    selectionEnd,
+  };
+}
+
+function createButton(): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.textContent = 'V';
+  btn.title = 'Rewrite with V';
+  btn.style.cssText = [
+    'position:absolute', 'z-index:2147483646', 'width:28px', 'height:28px', 'border:none',
+    'border-radius:999px', 'background:#6366f1', 'color:white', 'font-weight:700', 'cursor:pointer',
+    'box-shadow:0 4px 16px rgba(0,0,0,.25)',
+  ].join(';');
+  return btn;
+}
+
+let floatingBtn: HTMLButtonElement | null = null;
+let activeField: HTMLElement | null = null;
+let bridgeSettings: Awaited<ReturnType<typeof getBridgeSettings>> = null;
+let lastSuggestionHash = '';
+let suggestInFlight = false;
+let settingsPollTimer: number | null = null;
+let bridgeConnectionState: 'unknown' | 'connected' | 'unavailable' = 'unknown';
+let lastAccessReason: string | null = null;
+let runtimeStarted = false;
+let activatedFrameType: RuntimeActivationOptions['frameType'] = 'top';
+
+const typingMonitor = new TypingMonitor({
+  pauseMs: 1200,
+  minChars: 20,
+  onPause: (field, text) => void handlePauseSuggestion(field, text),
+});
+
+async function refreshSettings(): Promise<void> {
+  const nextSettings = await getBridgeSettings();
+  bridgeSettings = nextSettings;
+
+  if (!nextSettings) {
+    if (bridgeConnectionState !== 'unavailable') {
+      bridgeConnectionState = 'unavailable';
+      await sendDiagnosticEvent({
+        eventName: 'bridge_unavailable',
+        source: 'extension',
+        status: 'error',
+        stage: 'settings',
+        detail: { domain: location.hostname, reason: 'settings_fetch_failed', frameType: activatedFrameType },
+      });
+    }
+    return;
+  }
+
+  typingMonitor.updateOptions({
+    pauseMs: nextSettings.realtimePauseMs,
+    minChars: nextSettings.minCharsForSuggestion,
+  });
+
+  if (bridgeConnectionState !== 'connected') {
+    bridgeConnectionState = 'connected';
+    await sendDiagnosticEvent({
+      eventName: 'extension_bridge_connected',
+      source: 'extension',
+      status: 'success',
+      stage: 'settings',
+      detail: {
+        domain: location.hostname,
+        mode: nextSettings.extensionDomainMode,
+        frameType: activatedFrameType,
+      },
+    });
+  }
+
+  syncAccessDiagnostics();
+}
+
+function stopSettingsPolling(): void {
+  if (settingsPollTimer !== null) {
+    window.clearInterval(settingsPollTimer);
+    settingsPollTimer = null;
+  }
+}
+
+function startSettingsPolling(): void {
+  if (document.visibilityState !== 'visible' || settingsPollTimer !== null) return;
+  settingsPollTimer = window.setInterval(() => {
+    void refreshSettings();
+  }, 15000);
+}
+
+function syncSettingsPolling(): void {
+  if (document.visibilityState === 'visible') {
+    void refreshSettings();
+    startSettingsPolling();
+    return;
+  }
+  stopSettingsPolling();
+}
+
+function getAccessDecision() {
+  return evaluateDomainAccess(location.href, location.hostname, bridgeSettings ?? null);
+}
+
+function syncAccessDiagnostics(): void {
+  const decision = getAccessDecision();
+  const reason = decision.allowed ? null : decision.reason;
+  if (reason === lastAccessReason) return;
+  lastAccessReason = reason;
+  if (!reason) return;
+  void sendDiagnosticEvent({
+    eventName: 'extension_activation_blocked',
+    source: 'extension',
+    status: 'info',
+    stage: 'policy',
+    detail: { domain: location.hostname, reason, frameType: activatedFrameType },
+  });
+}
+
+function positionButton(field: HTMLElement) {
+  if (!floatingBtn) return;
+  const rect = field.getBoundingClientRect();
+  floatingBtn.style.top = `${window.scrollY + rect.top - 8}px`;
+  floatingBtn.style.left = `${window.scrollX + rect.right - 24}px`;
+}
+
+function hideButton() {
+  floatingBtn?.remove();
+  floatingBtn = null;
+  activeField = null;
+}
+
+function hashText(text: string): string {
+  return `${text.length}:${text.slice(0, 64)}`;
+}
+
+async function handleRewrite(field: HTMLElement) {
+  const access = getAccessDecision();
+  if (!access.allowed) {
+    syncAccessDiagnostics();
+    return;
+  }
+  hideSuggestionOverlay();
+  const meta = getFieldMetadata(field);
+  if (isSensitiveField(field, meta)) return;
+  const payload = buildPayload(field);
+  const startedAt = performance.now();
+  await sendDiagnosticEvent({
+    eventName: 'extension_rewrite_requested',
+    source: 'extension',
+    status: 'info',
+    stage: 'rewrite',
+    detail: { domain: location.hostname, frameType: activatedFrameType },
+  });
+  try {
+    const result = await sendRewriteRequest(payload);
+    if (!result?.success || !result?.suggestions?.options?.length) {
+      await sendDiagnosticEvent({
+        eventName: 'bridge_unavailable',
+        source: 'extension',
+        status: 'error',
+        stage: 'rewrite',
+        detail: {
+          domain: location.hostname,
+          reason: result?.error ?? 'No suggestions returned',
+          frameType: activatedFrameType,
+        },
+      });
+      showStatusOverlay(field, {
+        tone: 'error',
+        headline: 'V could not rewrite this field',
+        message: result?.error ?? 'Check that the desktop app is running and the local bridge is reachable.',
+      });
+      return;
+    }
+
+    const chosen = result.suggestions.options[0];
+    await sendDiagnosticEvent({
+      eventName: 'extension_rewrite_review_shown',
+      source: 'extension',
+      status: 'success',
+      stage: 'rewrite',
+      latencyMs: performance.now() - startedAt,
+      detail: { domain: location.hostname, frameType: activatedFrameType },
+    });
+    showStatusOverlay(field, {
+      headline: chosen.label || 'Review rewrite',
+      message: chosen.text,
+      actions: [
+        {
+          label: 'Accept',
+          variant: 'primary',
+          onClick: () => {
+            replaceFieldText(field, chosen.text);
+            void sendDiagnosticEvent({
+              eventName: 'extension_rewrite_accepted',
+              source: 'extension',
+              status: 'success',
+              stage: 'rewrite',
+              detail: { domain: location.hostname, frameType: activatedFrameType },
+            });
+          },
+        },
+        {
+          label: 'Dismiss',
+          variant: 'secondary',
+          onClick: () => {
+            void sendDiagnosticEvent({
+              eventName: 'extension_rewrite_dismissed',
+              source: 'extension',
+              status: 'info',
+              stage: 'rewrite',
+              detail: { domain: location.hostname, frameType: activatedFrameType },
+            });
+          },
+        },
+      ],
+    });
+  } catch (error) {
+    await sendDiagnosticEvent({
+      eventName: 'bridge_unavailable',
+      source: 'extension',
+      status: 'error',
+      stage: 'rewrite',
+      detail: {
+        domain: location.hostname,
+        reason: error instanceof Error ? error.message : 'Bridge request failed',
+        frameType: activatedFrameType,
+      },
+    });
+    showStatusOverlay(field, {
+      tone: 'error',
+      headline: 'Desktop bridge unavailable',
+      message: 'Open the V desktop app, then try again.',
+    });
+  }
+}
+
+async function handlePauseSuggestion(field: HTMLElement, text: string) {
+  const access = getAccessDecision();
+  if (!access.allowed) {
+    syncAccessDiagnostics();
+    return;
+  }
+  if (bridgeSettings?.paused) return;
+
+  const meta = getFieldMetadata(field);
+  if (isSensitiveField(field, meta)) return;
+
+  const speechDetected = detectSpeechDictationPatterns(text);
+  const realtimeEnabled = bridgeSettings?.realtimeSuggestions;
+  const speechMode = bridgeSettings?.speechCleanupMode ?? 'auto';
+  const speechAllowed = speechMode === 'auto' && speechDetected;
+
+  if (!realtimeEnabled && !speechAllowed) return;
+
+  const nextHash = hashText(text);
+  if (nextHash === lastSuggestionHash || suggestInFlight) return;
+
+  suggestInFlight = true;
+  try {
+    const payload = {
+      ...buildPayload(field),
+      trigger: speechAllowed ? 'speech' : 'pause',
+      requestedAction: speechAllowed ? 'speech_cleanup' : undefined,
+    };
+    const result = await sendSuggestRequest(payload);
+    if (!result?.success || !result?.suggestion) return;
+    if (result.suggestion.kind === 'good_as_is') return;
+
+    lastSuggestionHash = nextHash;
+    void sendDiagnosticEvent({
+      eventName: 'suggestion_shown',
+      source: 'extension',
+      status: 'success',
+      stage: 'suggest',
+      detail: { domain: location.hostname, kind: result.suggestion.kind, frameType: activatedFrameType },
+    });
+    showSuggestionOverlay(field, result.suggestion, {
+      onAccept: () => {
+        const replaceText = result.suggestion.replaceFullField ? result.suggestion.text : result.suggestion.text;
+        replaceFieldText(field, replaceText);
+        void sendDiagnosticEvent({
+          eventName: 'suggestion_accepted',
+          source: 'extension',
+          status: 'success',
+          stage: 'suggest',
+          detail: { domain: location.hostname, kind: result.suggestion.kind, frameType: activatedFrameType },
+        });
+      },
+      onDismiss: () => {
+        hideSuggestionOverlay();
+        void sendDiagnosticEvent({
+          eventName: 'suggestion_dismissed',
+          source: 'extension',
+          status: 'info',
+          stage: 'suggest',
+          detail: { domain: location.hostname, kind: result.suggestion.kind, frameType: activatedFrameType },
+        });
+      },
+      onOpenPanel: () => void handleRewrite(field),
+    });
+  } finally {
+    suggestInFlight = false;
+  }
+}
+
+function showButtonFor(field: HTMLElement) {
+  const access = getAccessDecision();
+  if (!access.allowed) {
+    hideButton();
+    syncAccessDiagnostics();
+    return;
+  }
+  const meta = getFieldMetadata(field);
+  if (isSensitiveField(field, meta)) return;
+  activeField = field;
+  typingMonitor.handleFocus(field);
+
+  if (!floatingBtn) {
+    floatingBtn = createButton();
+    document.body.appendChild(floatingBtn);
+    floatingBtn.addEventListener('mousedown', (e) => e.preventDefault());
+    floatingBtn.addEventListener('click', () => {
+      if (activeField) void handleRewrite(activeField);
+    });
+    void sendDiagnosticEvent({
+      eventName: 'rewrite_button_shown',
+      source: 'extension',
+      status: 'info',
+      stage: 'ui',
+      detail: { domain: location.hostname, frameType: activatedFrameType },
+    });
+  }
+  positionButton(field);
+}
+
+function handleFieldEvent(target: EventTarget | null): void {
+  if (!(target instanceof Element)) return;
+  if (!isTextField(target)) return;
+  showButtonFor(target);
+}
+
+function handleInputEvent(target: EventTarget | null): void {
+  if (!(target instanceof Element)) return;
+  if (!isTextField(target)) return;
+  showButtonFor(target);
+  const { fullFieldText } = getFieldText(target);
+  typingMonitor.handleInput(target, fullFieldText);
+}
+
+function bindRuntimeListeners(): void {
+  document.addEventListener('focusin', (event) => handleFieldEvent(event.target));
+
+  document.addEventListener('input', (event) => handleInputEvent(event.target));
+
+  document.addEventListener('scroll', () => {
+    if (activeField) {
+      positionButton(activeField);
+      positionOverlay(activeField);
+    }
+  }, true);
+
+  document.addEventListener('focusout', () => {
+    setTimeout(() => {
+      const focused = getFocusedTextField();
+      if (!focused) {
+        typingMonitor.handleBlur();
+        hideButton();
+        hideSuggestionOverlay();
+      }
+    }, 150);
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    syncSettingsPolling();
+    syncAccessDiagnostics();
+    if (document.visibilityState !== 'visible') {
+      typingMonitor.handleBlur();
+      hideSuggestionOverlay();
+    }
+  });
+}
+
+export function activateContentRuntime(options: RuntimeActivationOptions): void {
+  activatedFrameType = options.frameType;
+
+  if (!runtimeStarted) {
+    runtimeStarted = true;
+    bindRuntimeListeners();
+    void sendDiagnosticEvent({
+      eventName: 'full_runtime_activated',
+      source: 'extension',
+      status: 'info',
+      stage: 'activation',
+      latencyMs: performance.now() - options.bootstrapStartedAt,
+      detail: {
+        domain: location.hostname,
+        frameType: options.frameType,
+        trigger: options.trigger,
+        visibility: document.visibilityState,
+      },
+    });
+    syncSettingsPolling();
+  }
+
+  if (options.initialField && isTextField(options.initialField)) {
+    showButtonFor(options.initialField);
+  }
+}

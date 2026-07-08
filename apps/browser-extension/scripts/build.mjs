@@ -24,6 +24,7 @@ async function bundle(entry, outfile) {
 }
 
 await bundle('contentScript.ts', 'contentScript.js');
+await bundle('contentRuntime.ts', 'contentRuntime.js');
 await bundle('background.ts', 'background.js');
 
 cpSync(join(root, 'manifest.json'), join(dist, 'manifest.json'));
