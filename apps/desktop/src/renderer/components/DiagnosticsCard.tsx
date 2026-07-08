@@ -13,6 +13,7 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
     .filter(Boolean)
     .join(' | ');
   const verdictTone = getVerdictTone(diagnostics.releaseVerdict.status);
+  const packagingTone = getPackagingTone(diagnostics.packagingReadiness.status);
 
   return (
     <div className="card" style={{ padding: 16, marginTop: 16 }}>
@@ -122,6 +123,12 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
             Hotkey to panel: {formatLatency(diagnostics.latencyMs.hotkeyToPanel)}
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
+            Panel renderer loaded: {formatLatency(diagnostics.latencyMs.panelRendererLoaded)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            First option rendered: {formatLatency(diagnostics.latencyMs.firstOptionRendered)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
             Active window: {formatLatency(diagnostics.latencyMs.activeWindow)}
           </div>
           <div className="muted" style={{ fontSize: 12 }}>
@@ -169,6 +176,12 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12 }}>
             Current hotkey p50: {formatReleaseLatency(diagnostics.currentVersion.hotkeyToPanel)}
           </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Current renderer p50: {formatReleaseLatency(diagnostics.currentVersion.panelRendererLoaded)}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Current first option p50: {formatReleaseLatency(diagnostics.currentVersion.firstOptionRendered)}
+          </div>
         </div>
 
         <div className="option-card" style={{ marginTop: 0 }}>
@@ -213,6 +226,50 @@ export function DiagnosticsCard({ diagnostics }: { diagnostics: DiagnosticsPaylo
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
             Use this to compare broad injections against actual writing-field usage after each release.
           </div>
+        </div>
+
+        <div className="option-card" style={{ marginTop: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <strong>Packaging readiness</strong>
+            <span
+              className="badge"
+              style={{
+                background: packagingTone.background,
+                color: packagingTone.text,
+                border: `1px solid ${packagingTone.border}`,
+              }}
+            >
+              {diagnostics.packagingReadiness.status.replace('_', ' ')}
+            </span>
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            {diagnostics.packagingReadiness.summary}
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+            Last verified: {diagnostics.packagingReadiness.verifiedAt ?? 'Not recorded yet'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Verified Node: {diagnostics.packagingReadiness.verifiedNodeVersion ?? 'Not recorded yet'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Verified Electron: {diagnostics.packagingReadiness.verifiedElectronVersion ?? 'Not recorded yet'}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Recommended toolchain: {diagnostics.packagingReadiness.recommendedNodeRange}
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            Packaging command: {diagnostics.packagingReadiness.packagingCommand}
+          </div>
+          {diagnostics.packagingReadiness.artifactPath && (
+            <div className="muted" style={{ fontSize: 12 }}>
+              Artifact path: {diagnostics.packagingReadiness.artifactPath}
+            </div>
+          )}
+          {diagnostics.packagingReadiness.knownBlocker && (
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              Current blocker: {diagnostics.packagingReadiness.knownBlocker}
+            </div>
+          )}
         </div>
       </div>
 
@@ -324,6 +381,16 @@ function getVerdictTone(status: 'healthy' | 'watch' | 'needs_attention') {
     return { background: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.35)', text: '#86efac' };
   }
   if (status === 'watch') {
+    return { background: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.35)', text: '#fcd34d' };
+  }
+  return { background: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.35)', text: '#fca5a5' };
+}
+
+function getPackagingTone(status: 'ready' | 'needs_verification' | 'blocked') {
+  if (status === 'ready') {
+    return { background: 'rgba(34, 197, 94, 0.12)', border: 'rgba(34, 197, 94, 0.35)', text: '#86efac' };
+  }
+  if (status === 'needs_verification') {
     return { background: 'rgba(245, 158, 11, 0.12)', border: 'rgba(245, 158, 11, 0.35)', text: '#fcd34d' };
   }
   return { background: 'rgba(239, 68, 68, 0.12)', border: 'rgba(239, 68, 68, 0.35)', text: '#fca5a5' };

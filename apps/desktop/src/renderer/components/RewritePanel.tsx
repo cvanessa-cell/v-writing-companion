@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AppContext, RewriteAction, RewriteOption, RewriteResponse } from '@v/shared';
 import { ACTION_LABELS } from '@v/shared';
 
@@ -37,9 +37,16 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
   const [replaceStatus, setReplaceStatus] = useState('');
   const [expandedWhy, setExpandedWhy] = useState<number | null>(null);
   const [reading, setReading] = useState(Boolean(privacyReading));
+  const panelOpenedAtRef = useRef<number>(Date.now());
+  const firstOptionTrackedForSessionRef = useRef(false);
 
   useEffect(() => {
     const unsubscribe = window.v.onPanelOpen((payload) => {
+      const panelOpenedAtMs = typeof payload.panelOpenedAtMs === 'number'
+        ? payload.panelOpenedAtMs
+        : Date.now();
+      panelOpenedAtRef.current = panelOpenedAtMs;
+      firstOptionTrackedForSessionRef.current = false;
       setOriginalText(String(payload.originalText ?? ''));
       setContext((payload.context as AppContext) ?? null);
       setError(String(payload.error ?? ''));
@@ -47,11 +54,32 @@ export function RewritePanel({ initialText = '', initialContext, initialError, p
       setSelectedOption(null);
       setReplaceStatus('');
       setReading(Boolean(payload.privacyReading));
+      window.requestAnimationFrame(() => {
+        void window.v.trackEvent({
+          eventName: 'panel_renderer_loaded',
+          status: 'success',
+          stage: 'panel',
+          latencyMs: Date.now() - panelOpenedAtMs,
+          detail: { hasError: Boolean(payload.error), hasOriginalText: Boolean(payload.originalText) },
+        });
+      });
     });
     return () => {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!response?.options.length || firstOptionTrackedForSessionRef.current) return;
+    firstOptionTrackedForSessionRef.current = true;
+    void window.v.trackEvent({
+      eventName: 'first_option_rendered',
+      status: 'success',
+      stage: 'panel',
+      latencyMs: Date.now() - panelOpenedAtRef.current,
+      detail: { optionCount: response.options.length, action },
+    });
+  }, [action, response]);
 
   async function runRewrite(nextAction = action) {
     if (!originalText.trim()) {

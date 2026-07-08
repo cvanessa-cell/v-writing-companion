@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { getDatabase } from './database';
 import { getReleaseMetadata } from './releaseMetadata';
 import {
@@ -41,6 +43,30 @@ interface DomainOutcomeSummary {
   failures: number;
   blocked: number;
   lastEventAt: string;
+}
+
+interface PackagingReadinessSummary {
+  status: 'ready' | 'needs_verification' | 'blocked';
+  summary: string;
+  verifiedAt: string | null;
+  verifiedNodeVersion: string | null;
+  verifiedElectronVersion: string | null;
+  recommendedNodeRange: string;
+  packagingCommand: string;
+  artifactPath: string | null;
+  knownBlocker: string | null;
+}
+
+interface PackagingStatusFile {
+  status?: PackagingReadinessSummary['status'];
+  summary?: string;
+  verifiedAt?: string;
+  verifiedNodeVersion?: string;
+  verifiedElectronVersion?: string;
+  recommendedNodeRange?: string;
+  packagingCommand?: string;
+  artifactPath?: string;
+  knownBlocker?: string | null;
 }
 
 function sanitizeValue(value: unknown): unknown {
@@ -134,6 +160,45 @@ function summarizeDomainOutcomes(rows: DetailedDiagnosticRow[]): DomainOutcomeSu
       a.domain.localeCompare(b.domain),
     )
     .slice(0, 5);
+}
+
+function getPackagingReadiness(): PackagingReadinessSummary {
+  const statusFileCandidates = [
+    resolve(process.cwd(), 'apps/desktop/packaging-status.json'),
+    resolve(__dirname, '../../packaging-status.json'),
+  ];
+
+  for (const candidate of statusFileCandidates) {
+    try {
+      const parsed = JSON.parse(readFileSync(candidate, 'utf8')) as PackagingStatusFile;
+      if (!parsed.status || !parsed.summary || !parsed.packagingCommand) continue;
+      return {
+        status: parsed.status,
+        summary: parsed.summary,
+        verifiedAt: parsed.verifiedAt ?? null,
+        verifiedNodeVersion: parsed.verifiedNodeVersion ?? null,
+        verifiedElectronVersion: parsed.verifiedElectronVersion ?? null,
+        recommendedNodeRange: parsed.recommendedNodeRange ?? 'Node 18+ with the checked-in desktop packaging command',
+        packagingCommand: parsed.packagingCommand,
+        artifactPath: parsed.artifactPath ?? null,
+        knownBlocker: parsed.knownBlocker ?? null,
+      };
+    } catch {
+      // Ignore missing or invalid status snapshots and fall back to a conservative summary.
+    }
+  }
+
+  return {
+    status: 'needs_verification',
+    summary: 'Packaging uses the checked-in desktop packaging command, but this machine has not recorded a verified packaging snapshot yet.',
+    verifiedAt: null,
+    verifiedNodeVersion: null,
+    verifiedElectronVersion: null,
+    recommendedNodeRange: 'Node 18+ with the checked-in desktop packaging command',
+    packagingCommand: 'npm run package:dir -w @v/desktop',
+    artifactPath: null,
+    knownBlocker: null,
+  };
 }
 
 export function logDiagnosticEvent(input: DiagnosticEventInput): void {
@@ -308,12 +373,15 @@ export function getDiagnosticsSummary() {
     },
     latencyMs: {
       hotkeyToPanel: summarizeLatency(parsedRows, 'hotkey_panel_ready'),
+      panelRendererLoaded: summarizeLatency(parsedRows, 'panel_renderer_loaded'),
+      firstOptionRendered: summarizeLatency(parsedRows, 'first_option_rendered'),
       activeWindow: summarizeLatency(parsedRows, 'active_window_resolved'),
       captureSelected: summarizeLatency(parsedRows, 'capture_selected'),
       replaceText: summarizeLatency(parsedRows, 'replace_selected_text'),
       bridgeRewrite: summarizeLatency(parsedRows, 'extension_rewrite_response'),
       bridgeSuggest: summarizeLatency(parsedRows, 'extension_suggest_response'),
     },
+    packagingReadiness: getPackagingReadiness(),
     topFailureReasons: failureReasons,
     topProblemDomains: domainHotspots,
     topDomainOutcomes,

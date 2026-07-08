@@ -4,6 +4,7 @@
   "directories": {
     "output": "release"
   },
+  "electronVersion": "33.2.1",
   "files": [
     "out/**/*",
     "resources/**/*"

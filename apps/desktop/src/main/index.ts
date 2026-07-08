@@ -138,7 +138,10 @@ function showPanel(payload: Record<string, unknown>): void {
   if (!panelWindow) panelWindow = createPanelWindow();
   panelWindow.show();
   panelWindow.focus();
-  panelWindow.webContents.send('panel:open', payload);
+  panelWindow.webContents.send('panel:open', {
+    ...payload,
+    panelOpenedAtMs: Date.now(),
+  });
 }
 
 async function handleHotkeyTrigger(): Promise<void> {

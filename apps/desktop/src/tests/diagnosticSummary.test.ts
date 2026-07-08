@@ -56,10 +56,14 @@ describe('buildReleaseComparison', () => {
     const rows: DetailedDiagnosticRow[] = [
       makeRow('rewrite_completed', '2026-07-07T18:02:00.000Z', current),
       makeRow('hotkey_panel_ready', '2026-07-07T18:01:00.000Z', current, { latencyMs: 820 }),
+      makeRow('panel_renderer_loaded', '2026-07-07T18:01:01.000Z', current, { latencyMs: 120 }),
+      makeRow('first_option_rendered', '2026-07-07T18:01:02.000Z', current, { latencyMs: 760 }),
       makeRow('app_launched', '2026-07-07T18:00:00.000Z', current),
       makeRow('rewrite_completed', '2026-07-06T18:02:00.000Z', previous),
       makeRow('rewrite_completed', '2026-07-06T18:01:30.000Z', previous),
       makeRow('hotkey_panel_ready', '2026-07-06T18:01:00.000Z', previous, { latencyMs: 540 }),
+      makeRow('panel_renderer_loaded', '2026-07-06T18:01:01.000Z', previous, { latencyMs: 95 }),
+      makeRow('first_option_rendered', '2026-07-06T18:01:02.000Z', previous, { latencyMs: 610 }),
       makeRow('app_launched', '2026-07-06T18:00:00.000Z', previous),
     ];
 
@@ -67,6 +71,8 @@ describe('buildReleaseComparison', () => {
 
     expect(summary.previous?.release.appVersion).toBe('0.1.0');
     expect(summary.deltas.some((delta) => delta.label === 'Successful rewrites')).toBe(true);
+    expect(summary.deltas.some((delta) => delta.label === 'Renderer loaded p50')).toBe(true);
+    expect(summary.deltas.some((delta) => delta.label === 'First option p50')).toBe(true);
     expect(summary.comparisonNote).toContain('Desktop 0.1.0');
   });
 });

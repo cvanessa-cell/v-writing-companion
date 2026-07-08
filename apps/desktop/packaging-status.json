@@ -1,0 +1,11 @@
+{
+  "status": "ready",
+  "summary": "Desktop packaging was verified locally with the checked-in electron-builder command and produced a Windows unpacked artifact.",
+  "verifiedAt": "2026-07-08T09:21:08-07:00",
+  "verifiedNodeVersion": "v24.15.0",
+  "verifiedElectronVersion": "33.2.1",
+  "recommendedNodeRange": "Node 18+ with npm run package:dir -w @v/desktop",
+  "packagingCommand": "npm run package:dir -w @v/desktop",
+  "artifactPath": "C:/Users/cvane/V/apps/desktop/release/win-unpacked",
+  "knownBlocker": null
+}

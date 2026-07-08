@@ -54,6 +54,8 @@ export interface ReleaseHealthSummary {
   extensionFieldActivationRate: RateSummary;
   extensionRuntimeActivationRate: RateSummary;
   hotkeyToPanel: LatencySummary | null;
+  panelRendererLoaded: LatencySummary | null;
+  firstOptionRendered: LatencySummary | null;
   timeToFirstSuccess: TimeToFirstSuccessSummary | null;
 }
 
@@ -197,6 +199,8 @@ export function summarizeReleaseHealth(
       Math.max((counts.supported_field_seen ?? 0) - (counts.full_runtime_activated ?? 0), 0),
     ),
     hotkeyToPanel: summarizeLatency(rows, 'hotkey_panel_ready'),
+    panelRendererLoaded: summarizeLatency(rows, 'panel_renderer_loaded'),
+    firstOptionRendered: summarizeLatency(rows, 'first_option_rendered'),
     timeToFirstSuccess: summarizeTimeToFirstSuccess(rows),
   };
 }
@@ -309,6 +313,18 @@ export function buildReleaseComparison(
       'Hotkey p50',
       current.hotkeyToPanel ? `${current.hotkeyToPanel.p50} ms` : null,
       previous.hotkeyToPanel ? `${previous.hotkeyToPanel.p50} ms` : null,
+    );
+    pushDelta(
+      deltas,
+      'Renderer loaded p50',
+      current.panelRendererLoaded ? `${current.panelRendererLoaded.p50} ms` : null,
+      previous.panelRendererLoaded ? `${previous.panelRendererLoaded.p50} ms` : null,
+    );
+    pushDelta(
+      deltas,
+      'First option p50',
+      current.firstOptionRendered ? `${current.firstOptionRendered.p50} ms` : null,
+      previous.firstOptionRendered ? `${previous.firstOptionRendered.p50} ms` : null,
     );
 
     if (

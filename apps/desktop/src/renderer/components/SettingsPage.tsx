@@ -68,6 +68,9 @@ export function SettingsPage() {
             <div className="muted" style={{ fontSize: 12 }}>
               Current release verdict: {diagnostics.releaseVerdict.title}
             </div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              Packaging readiness: {diagnostics.packagingReadiness.summary}
+            </div>
             <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
               Bridge health: {bridgeUrl}
             </div>
