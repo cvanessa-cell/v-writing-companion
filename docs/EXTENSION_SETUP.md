@@ -21,6 +21,8 @@ npm run build -w @v/browser-extension
 4. Click the floating **V** button near the field
 5. Review the inline overlay and click **Accept** to apply the rewrite
 
+For the full owner-facing success checklist, use [FIRST_SUCCESS.md](./FIRST_SUCCESS.md).
+
 ## Security
 
 - Extension only talks to `127.0.0.1`

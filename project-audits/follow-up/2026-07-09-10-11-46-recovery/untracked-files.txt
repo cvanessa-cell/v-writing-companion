@@ -1,0 +1,4 @@
+project-audits/follow-up/2026-07-09-10-11-46-recovery/working-tree.patch
+project-audits/follow-up/2026-07-09-10-11-46/checkpoint.txt
+project-audits/follow-up/2026-07-09-10-11-46/pre-change-status.txt
+project-audits/follow-up/2026-07-09-10-11-46/timestamp.txt

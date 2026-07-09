@@ -1,0 +1,11 @@
+## main...origin/main
+ M README.md
+ M apps/desktop/src/renderer/components/SettingsPage.tsx
+ M docs/EXTENSION_SETUP.md
+ M docs/SETUP.md
+?? apps/desktop/src/renderer/components/FirstSuccessGuide.tsx
+?? apps/desktop/src/renderer/components/firstSuccess.ts
+?? apps/desktop/src/tests/firstSuccess.test.ts
+?? docs/FIRST_SUCCESS.md
+?? project-audits/follow-up/2026-07-09-10-11-46-recovery/
+?? project-audits/follow-up/2026-07-09-10-11-46/

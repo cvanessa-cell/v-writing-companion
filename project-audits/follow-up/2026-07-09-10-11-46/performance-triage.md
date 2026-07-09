@@ -1,0 +1,15 @@
+# Performance Triage
+
+## Working context
+- Project working folder: `C:\Users\cvane\V`
+- Project goal: improve release proof, onboarding clarity, and owner-operability without taking on the higher-risk native desktop capture rewrite in the same pass.
+- Latest performance audit: [`C:\Users\cvane\V\docs\performance-audit-2026-07-09.md`](C:\Users\cvane\V\docs\performance-audit-2026-07-09.md)
+
+| Issue | Affected Area | Severity | Business Impact | Consumer Impact | Evidence Available | Missing Evidence | Likely Cause | Highest-Leverage Fix | Implementation Risk | Expected Improvement | Files Likely Affected |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| No dedicated first-success surface beyond small settings and popup hints | Content, marketing, UI, admin | High | Harder to explain or validate value with real users | New users do not get a single clear proof path | July 9 audit plus current Settings and docs review | No public conversion data yet | Guidance is spread across README, setup docs, popup, and diagnostics | Add a dedicated first-success guide in-app and in docs with diagnostics-backed proof steps | Low | Faster onboarding, clearer owner validation, stronger value communication | `apps/desktop/src/renderer/components/*`, `README.md`, `docs/*` |
+| Desktop hotkey latency still adds about 1.13s before panel readiness | Core functionality, reliability | High | Main value moment still feels slow | Slower perceived responsiveness during core rewrite flow | July 9 measured audit | End-to-end traced real session still missing | PowerShell-based window and clipboard path | Native helper or Win32 binding rewrite | High | Largest future UX speed gain | `apps/desktop/src/main/*` |
+| No full end-to-end traced rewrite session | Measurement | High | Hard to attribute latency to the right subsystem | Slower optimization cycle | Existing diagnostics and renderer milestones | Full `hotkey_triggered -> replace_succeeded` trace | Missing instrumentation edges | Add end-to-end milestones after onboarding/value work | Medium | Better attribution for the next audit | `apps/desktop/src/main/index.ts`, renderer flow |
+| No public landing or pricing surface | Marketing, monetization | Medium | Limits acquisition and commercialization | Users cannot evaluate pricing or external proof | Repo inventory | Real funnel data and pricing evidence | Product is still proving repeated value locally | Delay billing; improve proof surfaces first | Low | Better groundwork for later growth work | docs and future app/site surface |
+| Packaging readiness is local-only and must be refreshed manually | Admin, reliability | Medium | Owner can misread stale release readiness | Users may receive older proof about packageability | Existing packaging readiness snapshot | Automated refresh or CI packaging | Snapshot is file-based and manual | Keep snapshot visible and documented | Low | Better ship/no-ship decisions | Existing diagnostics surface |
+

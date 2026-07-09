@@ -3,6 +3,7 @@
 V helps you rewrite text inside Windows apps and browser fields without forcing you into a separate chat tab. It is designed for people who need faster, cleaner writing in the tools they already use while keeping privacy controls, exclusions, and local diagnostics in their own desktop app.
 
 See [docs/SETUP.md](docs/SETUP.md), [docs/EXTENSION_SETUP.md](docs/EXTENSION_SETUP.md), and [docs/PRIVACY.md](docs/PRIVACY.md) for setup and privacy details.
+For the fastest value path, use [docs/FIRST_SUCCESS.md](docs/FIRST_SUCCESS.md).
 
 For repo commands and operating guidance, see [TOOLS.md](TOOLS.md). For the July 7 source comparison against IV by Agent V, see [docs/source-comparison-2026-07-07.md](docs/source-comparison-2026-07-07.md). For the Assistant project merge review, see [docs/assistant-project-merge-2026-07-08.md](docs/assistant-project-merge-2026-07-08.md).
 

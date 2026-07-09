@@ -39,6 +39,7 @@ Load `apps/browser-extension/dist` as unpacked extension.
 ## First run
 
 On first launch, V opens Settings onboarding. Complete it, then test with Ctrl+Shift+Space on selected text.
+For the exact proof checklist the owner should validate, use [FIRST_SUCCESS.md](./FIRST_SUCCESS.md).
 
 ## Troubleshooting
 

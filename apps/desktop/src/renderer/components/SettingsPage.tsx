@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { MemoryCenter } from './MemoryCenter';
 import { AppRulesLibrary, OnboardingFlow } from './AppRulesLibrary';
 import { DiagnosticsCard } from './DiagnosticsCard';
+import { FirstSuccessGuide } from './FirstSuccessGuide';
 
 type SettingsPayload = Awaited<ReturnType<typeof window.v.getSettings>>;
 
@@ -51,30 +52,11 @@ export function SettingsPage() {
 
       {tab === 'general' && (
         <div className="card" style={{ padding: 16 }}>
-          <div className="option-card" style={{ marginTop: 0, marginBottom: 16 }}>
-            <strong>First successful rewrite path</strong>
-            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-              1. Connect a provider. 2. Run one desktop hotkey rewrite. 3. Load the extension and accept one browser suggestion.
-            </div>
-            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-              Provider: {providerStatus.configured ? 'ready' : 'needs API key'}
-            </div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              Desktop rewrite proof: {desktopReady ? 'captured in diagnostics' : 'not completed yet'}
-            </div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              Browser rewrite proof: {extensionReady ? 'captured in diagnostics' : 'not completed yet'}
-            </div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              Current release verdict: {diagnostics.releaseVerdict.title}
-            </div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              Packaging readiness: {diagnostics.packagingReadiness.summary}
-            </div>
-            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-              Bridge health: {bridgeUrl}
-            </div>
-          </div>
+          <FirstSuccessGuide
+            providerConfigured={providerStatus.configured}
+            bridgeUrl={bridgeUrl}
+            diagnostics={diagnostics}
+          />
 
           <label className="muted">Hotkey</label>
           <input
